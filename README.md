@@ -68,13 +68,13 @@ env:
 Secrets are retrieved from AWS Systems Manager Parameter Store. To reference a secret, use the format:
 
 ```
-secret:app-name/environment/SECRET_NAME
+secret:/app-name/environment/SECRET_NAME
 ```
 
 You can also use the `{environment}` placeholder in your secret paths, which will be automatically replaced with the current deployment environment:
 
 ```
-secret:app-name/{environment}/SECRET_NAME
+secret:/app-name/{environment}/SECRET_NAME
 ```
 
 This makes it easy to maintain environment-specific secrets without hardcoding environment names in your configuration file.
