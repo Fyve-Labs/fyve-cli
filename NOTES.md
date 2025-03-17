@@ -8,7 +8,7 @@ Build a command line application using GO. The CLI is named "fyve", its main fea
       AWS_REGION: us-east-1
       AWS_S3_BUCKET: example
       APP_URL: https://examples.com
-      DATABASE_URL: secret:app-name/environment/DATABASE_URL
+      DATABASE_URL: secret:/app-name/{environment}/DATABASE_URL
 - App name can be overriden from command line arguments
 - Secrets will be backed by AWS Systems Manager Parameter Store
 - CLI builds NEXTJS project using dockerfile, push image to AWS ECR. If the Dockerfile does not exists within NextJS project, it will fallback to use embed Dockerfile using nextjs.Dockerfile ✅

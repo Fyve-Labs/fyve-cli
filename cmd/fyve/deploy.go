@@ -17,7 +17,7 @@ const (
 	DefaultECRRegistry = "aws_account_id.dkr.ecr.region.amazonaws.com"
 
 	// DefaultDockerHost is the default Docker host to connect to
-	DefaultDockerHost = "tcp://docker-host:2375"
+	DefaultDockerHost = "" // Empty string means use local Docker daemon
 
 	// DefaultPort is the default port to expose
 	DefaultPort = "3000"
@@ -30,7 +30,6 @@ func DeployCmd() *cobra.Command {
 		configFile  string
 		registry    string
 		dockerHost  string
-		port        string
 		imagePrefix string
 		platform    string
 	)
@@ -77,13 +76,13 @@ func DeployCmd() *cobra.Command {
 			}
 
 			// Process environment variables and resolve any secret references
-			resolvedEnv, err := secretManager.ProcessSecretRefs(cfg.Env)
+			resolvedEnv, err := secretManager.ProcessSecretRefs(cfg.Env, environment)
 			if err != nil {
 				return fmt.Errorf("failed to process secrets: %w", err)
 			}
 
 			// Set up builder
-			builder, err := builder.NewNextJSBuilder(projectDir, appName, registry, imagePrefix, platform)
+			builder, err := builder.NewNextJSBuilder(projectDir, appName, registry, imagePrefix, platform, environment)
 			if err != nil {
 				return fmt.Errorf("failed to initialize builder: %w", err)
 			}
@@ -99,7 +98,7 @@ func DeployCmd() *cobra.Command {
 			}
 
 			// Deploy to remote Docker host
-			deployer, err := deployer.NewDockerDeployer(appName, registry, dockerHost, port, resolvedEnv, imagePrefix)
+			deployer, err := deployer.NewDockerDeployer(appName, registry, dockerHost, DefaultPort, resolvedEnv, imagePrefix)
 			if err != nil {
 				return fmt.Errorf("failed to create deployer: %w", err)
 			}
@@ -118,7 +117,6 @@ func DeployCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&configFile, "config", "c", "fyve.yaml", "Path to configuration file")
 	cmd.Flags().StringVarP(&registry, "registry", "r", DefaultECRRegistry, "ECR registry URL")
 	cmd.Flags().StringVarP(&dockerHost, "docker-host", "d", DefaultDockerHost, "Remote Docker host URL")
-	cmd.Flags().StringVarP(&port, "port", "p", DefaultPort, "Port to expose on the host")
 	cmd.Flags().StringVarP(&imagePrefix, "image-prefix", "i", "fyve-", "Prefix for Docker image names")
 	cmd.Flags().StringVar(&platform, "platform", "linux/amd64", "Target platform for Docker build (e.g., linux/amd64, linux/arm64)")
 

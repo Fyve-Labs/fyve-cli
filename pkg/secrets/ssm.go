@@ -36,16 +36,20 @@ func NewSSMManager(region string) (*SSMManager, error) {
 }
 
 // GetSecret retrieves a secret from SSM Parameter Store
-func (m *SSMManager) GetSecret(secretRef string) (string, error) {
+func (m *SSMManager) GetSecret(secretRef string, environment string) (string, error) {
 	ctx := context.Background()
 
 	// Parse secret reference, expected format: secret:app-name/environment/SECRET_NAME
+	// or secret:app-name/{environment}/SECRET_NAME
 	if !strings.HasPrefix(secretRef, "secret:") {
 		return "", fmt.Errorf("invalid secret reference format: %s", secretRef)
 	}
 
 	// Extract parameter path
 	paramPath := strings.TrimPrefix(secretRef, "secret:")
+
+	// Replace {environment} placeholder with actual environment name
+	paramPath = strings.ReplaceAll(paramPath, "{environment}", environment)
 
 	// Create pointer to boolean for WithDecryption field
 	decrypt := true
@@ -64,12 +68,12 @@ func (m *SSMManager) GetSecret(secretRef string) (string, error) {
 }
 
 // ProcessSecretRefs resolves secret references in environment variables
-func (m *SSMManager) ProcessSecretRefs(env map[string]string) (map[string]string, error) {
+func (m *SSMManager) ProcessSecretRefs(env map[string]string, environment string) (map[string]string, error) {
 	result := make(map[string]string)
 
 	for key, val := range env {
 		if strings.HasPrefix(val, "secret:") {
-			secretVal, err := m.GetSecret(val)
+			secretVal, err := m.GetSecret(val, environment)
 			if err != nil {
 				return nil, fmt.Errorf("failed to resolve secret for %s: %w", key, err)
 			}

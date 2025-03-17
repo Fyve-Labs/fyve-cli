@@ -32,10 +32,11 @@ type NextJSBuilder struct {
 	accountID   string
 	ctx         context.Context
 	Platform    string // Target platform for Docker build
+	Environment string // Deployment environment
 }
 
 // NewNextJSBuilder creates a new NextJS builder
-func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, platform string) (*NextJSBuilder, error) {
+func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, platform string, environment string) (*NextJSBuilder, error) {
 	// Default prefix to "fyve-" if not provided
 	if imagePrefix == "" {
 		imagePrefix = "fyve-"
@@ -44,6 +45,17 @@ func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, 
 	// Default platform to linux/amd64 if not provided
 	if platform == "" {
 		platform = "linux/amd64"
+	}
+
+	// Default environment to prod if not provided
+	if environment == "" {
+		environment = "prod"
+	}
+
+	// Use "latest" tag for production, environment name for other environments
+	imageTag := environment
+	if environment == "prod" {
+		imageTag = "latest"
 	}
 
 	ctx := context.Background()
@@ -82,7 +94,7 @@ func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, 
 	return &NextJSBuilder{
 		ProjectDir:  projectDir,
 		AppName:     appName,
-		ImageName:   fmt.Sprintf("%s%s:%s", imagePrefix, appName, "latest"),
+		ImageName:   fmt.Sprintf("%s%s:%s", imagePrefix, appName, imageTag),
 		Registry:    registry,
 		ImagePrefix: imagePrefix,
 		ecrClient:   ecrClient,
@@ -90,12 +102,22 @@ func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, 
 		accountID:   accountID,
 		ctx:         ctx,
 		Platform:    platform,
+		Environment: environment,
 	}, nil
 }
 
 // Build creates a Docker image for the NextJS application
 func (b *NextJSBuilder) Build() error {
 	fmt.Printf("Building Docker image for NextJS application (platform: %s)...\n", b.Platform)
+
+	// Track temporary files to clean up
+	var tempFiles []string
+	defer func() {
+		// Clean up any temporary files
+		for _, file := range tempFiles {
+			os.Remove(file)
+		}
+	}()
 
 	// Check if Dockerfile exists, or use default one
 	dockerfile := filepath.Join(b.ProjectDir, "Dockerfile")
@@ -118,9 +140,51 @@ func (b *NextJSBuilder) Build() error {
 
 		// Set the dockerfile path to the temporary one
 		dockerfilePath = tempDockerfile
+		tempFiles = append(tempFiles, tempDockerfile)
+	}
 
-		// Ensure we clean up the temporary file when done
-		defer os.Remove(tempDockerfile)
+	// Check if .dockerignore exists, or use default one
+	dockerignore := filepath.Join(b.ProjectDir, ".dockerignore")
+	if _, err := os.Stat(dockerignore); os.IsNotExist(err) {
+
+		dockerignoreContent := []byte(`# Dependencies
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+.dockerignore
+
+# Testing
+coverage
+.nyc_output
+
+# Build
+.next
+out
+build
+dist
+
+# Misc
+.DS_Store
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+`)
+
+		if err := os.WriteFile(dockerignore, dockerignoreContent, 0644); err != nil {
+			fmt.Printf("Warning: Failed to create .dockerignore file: %v\n", err)
+			// Continue anyway, since we've added a safeguard in the Dockerfile
+		} else {
+			// Add to the list of files to clean up after building
+			tempFiles = append(tempFiles, dockerignore)
+		}
 	}
 
 	// Build Docker image with platform specified
@@ -219,7 +283,14 @@ func (b *NextJSBuilder) GetECRRegistryURL() string {
 
 // PushToECR uploads the built image to AWS ECR
 func (b *NextJSBuilder) PushToECR() error {
-	fmt.Println("Pushing Docker image to AWS ECR...")
+	// Get tag from image name
+	imageParts := strings.Split(b.ImageName, ":")
+	imageTag := "latest"
+	if len(imageParts) > 1 {
+		imageTag = imageParts[len(imageParts)-1]
+	}
+
+	fmt.Printf("Pushing Docker image to AWS ECR with tag '%s'...\n", imageTag)
 
 	// Ensure ECR repository exists
 	if err := b.EnsureECRRepositoryExists(); err != nil {

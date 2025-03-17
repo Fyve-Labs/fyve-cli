@@ -43,7 +43,12 @@ fyve deploy --environment staging
 
 # Specify a different config file
 fyve deploy --config custom-config.yaml
+
+# Deploy to a remote Docker host
+fyve deploy --docker-host tcp://remote-host:2375
 ```
+
+By default, Fyve will deploy to your local Docker daemon if no `--docker-host` is specified. This is convenient for local development and testing. When you're ready to deploy to a remote environment, simply use the `--docker-host` flag with the appropriate connection string.
 
 ### Configuration
 
@@ -55,7 +60,7 @@ env:
   AWS_REGION: us-east-1
   AWS_S3_BUCKET: example
   APP_URL: https://examples.com
-  DATABASE_URL: secret:app-name/environment/DATABASE_URL
+  DATABASE_URL: secret:/app-name/environment/DATABASE_URL
 ```
 
 ### Secrets
@@ -65,6 +70,14 @@ Secrets are retrieved from AWS Systems Manager Parameter Store. To reference a s
 ```
 secret:app-name/environment/SECRET_NAME
 ```
+
+You can also use the `{environment}` placeholder in your secret paths, which will be automatically replaced with the current deployment environment:
+
+```
+secret:app-name/{environment}/SECRET_NAME
+```
+
+This makes it easy to maintain environment-specific secrets without hardcoding environment names in your configuration file.
 
 ### Dockerfile
 
@@ -76,6 +89,8 @@ When deploying, Fyve automatically:
 1. Creates the ECR repository if it doesn't exist using AWS SDK v2
 2. Logs in to ECR using secure authentication via AWS SDK v2
 3. Tags and pushes your Docker image
+
+For production environments, the image tag will be `latest`, while other environments (staging, dev, test, preview) will use the environment name as the image tag (e.g., `fyve-myapp:staging`). This helps with tracking which version is deployed to each environment.
 
 Fyve uses AWS SDK for Go v2 for direct integration with AWS services, providing improved error handling, context support, and better concurrency. This eliminates the need for the AWS CLI to be installed on your system for ECR operations.
 
@@ -92,7 +107,7 @@ When deploying to the production environment, Fyve automatically configures Trae
 - Maps to internal port 3000
 - Attaches containers to the "public" network for proper routing
 
-This allows your application to be immediately accessible via HTTPS with proper routing and load balancing, without any additional configuration.
+This allows your application to be immediately accessible via HTTPS with proper routing and load balancing, without any additional configuration. Note that container ports are intentionally not exposed to the host, as Traefik handles routing directly through Docker networks, allowing multiple containers to run on the same host without port conflicts.
 
 ## Command Line Options
 
@@ -101,11 +116,10 @@ fyve deploy [app-name] [flags]
 
 Flags:
   -c, --config string         Path to configuration file (default "fyve.yaml")
-  -d, --docker-host string    Remote Docker host URL (default "tcp://docker-host:2375")
+  -d, --docker-host string    Remote Docker host URL (if not specified, uses local Docker daemon)
   -e, --environment string    Deployment environment (prod, staging, dev, test, preview) (default "prod")
   -h, --help                  help for deploy
   -i, --image-prefix string   Prefix for Docker image names (default "fyve-")
-  -p, --port string           Port to expose on the host (default "3000")
   -r, --registry string       ECR registry URL (default "aws_account_id.dkr.ecr.region.amazonaws.com")
       --platform string       Target platform for Docker build (default "linux/amd64")
 ```

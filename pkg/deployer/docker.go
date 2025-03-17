@@ -133,8 +133,14 @@ func (d *DockerDeployer) authenticateECR() error {
 
 // Deploy deploys the application to the remote Docker host
 func (d *DockerDeployer) Deploy(environment string) error {
+	// Use "latest" tag for production, environment name for other environments
+	imageTag := environment
+	if environment == "prod" {
+		imageTag = "latest"
+	}
+
 	// Include the image prefix in the image name
-	imageName := fmt.Sprintf("%s/%s%s:%s", d.registry, d.imagePrefix, d.appName, "latest")
+	imageName := fmt.Sprintf("%s/%s%s:%s", d.registry, d.imagePrefix, d.appName, imageTag)
 	containerName := fmt.Sprintf("%s-%s", d.appName, environment)
 
 	fmt.Printf("Deploying image %s to %s environment\n", imageName, environment)
@@ -144,8 +150,14 @@ func (d *DockerDeployer) Deploy(environment string) error {
 		return fmt.Errorf("failed to authenticate with ECR: %w", err)
 	}
 
-	// Prepare docker command with remote host
-	dockerCmd := fmt.Sprintf("docker -H %s", d.remoteHost)
+	// Prepare docker command with remote host if specified
+	dockerCmd := "docker"
+	if d.remoteHost != "" {
+		dockerCmd = fmt.Sprintf("docker -H %s", d.remoteHost)
+		fmt.Printf("Using remote Docker host: %s\n", d.remoteHost)
+	} else {
+		fmt.Println("Using local Docker daemon")
+	}
 
 	// Pull the image
 	fmt.Println("Pulling image...")
@@ -179,24 +191,23 @@ func (d *DockerDeployer) Deploy(environment string) error {
 	}
 
 	// Create the base docker run command
-	runCmdArgs := []string{
-		"-H", d.remoteHost,
-		"run", "-d",
-		"--name", containerName,
+	runCmdArgs := []string{}
+
+	// Add host flag if remote host is specified
+	if d.remoteHost != "" {
+		runCmdArgs = append(runCmdArgs, "-H", d.remoteHost)
 	}
 
-	// Add port mapping if specified
-	if d.port != "" {
-		runCmdArgs = append(runCmdArgs, "-p", fmt.Sprintf("%s:3000", d.port))
-	}
+	// Add run command and basic options
+	runCmdArgs = append(runCmdArgs, "run", "-d", "--name", containerName)
 
 	// Add environment variables
 	for key, val := range d.env {
 		runCmdArgs = append(runCmdArgs, "-e", fmt.Sprintf("%s=%s", key, val))
 	}
 
-	// Add FYVE_ENV
-	runCmdArgs = append(runCmdArgs, "-e", fmt.Sprintf("FYVE_ENV=%s", environment))
+	// Add NODE_ENV
+	runCmdArgs = append(runCmdArgs, "-e", fmt.Sprintf("NODE_ENV=%s", environment))
 
 	// Add Traefik labels for production environment
 	if environment == "prod" {

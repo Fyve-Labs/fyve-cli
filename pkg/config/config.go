@@ -37,7 +37,7 @@ func (c *Config) OverrideAppName(appName string) {
 }
 
 // ProcessSecrets handles any secret references in configuration
-func (c *Config) ProcessSecrets() error {
+func (c *Config) ProcessSecrets(environment string) error {
 	// Get AWS region from environment variables or use default
 	awsRegion := "us-east-1"
 	if region, ok := c.Env["AWS_REGION"]; ok {
@@ -51,7 +51,7 @@ func (c *Config) ProcessSecrets() error {
 	}
 
 	// Resolve secrets in environment variables
-	resolvedEnv, err := secretManager.ProcessSecretRefs(c.Env)
+	resolvedEnv, err := secretManager.ProcessSecretRefs(c.Env, environment)
 	if err != nil {
 		return fmt.Errorf("failed to process secrets: %w", err)
 	}
