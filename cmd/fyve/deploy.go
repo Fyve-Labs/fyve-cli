@@ -3,6 +3,7 @@ package fyve
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/fyve-labs/fyve-cli/pkg/builder"
 	"github.com/fyve-labs/fyve-cli/pkg/config"
@@ -13,8 +14,8 @@ import (
 
 // Environment variables
 const (
-	// DefaultECRRegistry is the default ECR registry URL
-	DefaultECRRegistry = "aws_account_id.dkr.ecr.region.amazonaws.com"
+	// DefaultECRRegistry is the default ECR registry URL template
+	DefaultECRRegistry = "{aws_account_id}.dkr.ecr.{region}.amazonaws.com"
 
 	// DefaultDockerHost is the default Docker host to connect to
 	DefaultDockerHost = "" // Empty string means use local Docker daemon
@@ -69,6 +70,9 @@ func DeployCmd() *cobra.Command {
 				awsRegion = region
 			}
 
+			// Replace templated values in registry URL
+			registry = strings.Replace(registry, "{region}", awsRegion, 1)
+
 			// Create SSM manager using AWS SDK v2
 			secretManager, err := secrets.NewSSMManager(awsRegion)
 			if err != nil {
@@ -115,7 +119,7 @@ func DeployCmd() *cobra.Command {
 	// Add flags
 	cmd.Flags().StringVarP(&environment, "environment", "e", "prod", "Deployment environment (prod, staging, dev, test, preview)")
 	cmd.Flags().StringVarP(&configFile, "config", "c", "fyve.yaml", "Path to configuration file")
-	cmd.Flags().StringVarP(&registry, "registry", "r", DefaultECRRegistry, "ECR registry URL")
+	cmd.Flags().StringVarP(&registry, "registry", "r", DefaultECRRegistry, "ECR registry URL (format: {aws_account_id}.dkr.ecr.{region}.amazonaws.com)")
 	cmd.Flags().StringVarP(&dockerHost, "docker-host", "d", DefaultDockerHost, "Remote Docker host URL")
 	cmd.Flags().StringVarP(&imagePrefix, "image-prefix", "i", "fyve-", "Prefix for Docker image names")
 	cmd.Flags().StringVar(&platform, "platform", "linux/amd64", "Target platform for Docker build (e.g., linux/amd64, linux/arm64)")

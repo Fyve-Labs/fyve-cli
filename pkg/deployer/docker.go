@@ -18,7 +18,6 @@ type DockerDeployer struct {
 	registry    string
 	appName     string
 	env         map[string]string
-	port        string
 	remoteHost  string
 	imagePrefix string
 	awsRegion   string
@@ -33,18 +32,43 @@ func NewDockerDeployer(appName, registry, remoteHost, port string, env map[strin
 
 	// Extract region from registry URL (format: account.dkr.ecr.region.amazonaws.com)
 	awsRegion := "us-east-1" // Default region
-	if strings.Contains(registry, ".amazonaws.com") {
+	if region, ok := env["AWS_REGION"]; ok {
+		awsRegion = region
+	} else if strings.Contains(registry, ".amazonaws.com") {
 		parts := strings.Split(registry, ".")
 		if len(parts) >= 4 {
 			awsRegion = parts[3]
 		}
 	}
 
+	// Replace region template
+	registry = strings.Replace(registry, "{region}", awsRegion, 1)
+
+	// Load AWS config to get account ID if needed
+	if strings.Contains(registry, "{aws_account_id}") || strings.Contains(registry, "aws_account_id") {
+		ctx := context.Background()
+		cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(awsRegion))
+		if err != nil {
+			return nil, fmt.Errorf("failed to load AWS config for region %s: %w", awsRegion, err)
+		}
+
+		// Get AWS account ID
+		stsClient := sts.NewFromConfig(cfg)
+		identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get AWS account ID using region %s: %w", awsRegion, err)
+		}
+
+		accountID := *identity.Account
+		// Replace both formats
+		registry = strings.Replace(registry, "{aws_account_id}", accountID, 1)
+		registry = strings.Replace(registry, "aws_account_id", accountID, 1)
+	}
+
 	return &DockerDeployer{
 		registry:    registry,
 		appName:     appName,
 		env:         env,
-		port:        port,
 		remoteHost:  remoteHost,
 		imagePrefix: imagePrefix,
 		awsRegion:   awsRegion,
@@ -63,18 +87,6 @@ func (d *DockerDeployer) authenticateECR() error {
 	)
 	if err != nil {
 		return fmt.Errorf("failed to load AWS config: %w", err)
-	}
-
-	// Get AWS account ID if needed
-	registry := d.registry
-	if strings.Contains(registry, "aws_account_id") {
-		stsClient := sts.NewFromConfig(cfg)
-		identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-		if err != nil {
-			return fmt.Errorf("failed to get AWS account ID: %w", err)
-		}
-		accountID := *identity.Account
-		registry = strings.Replace(registry, "aws_account_id", accountID, 1)
 	}
 
 	// Create ECR client
@@ -118,7 +130,7 @@ func (d *DockerDeployer) authenticateECR() error {
 	// }
 
 	// Login with docker
-	dockerLoginCmd := exec.Command("docker", "login", "--username", "AWS", "--password-stdin", registry)
+	dockerLoginCmd := exec.Command("docker", "login", "--username", "AWS", "--password-stdin", d.registry)
 	dockerLoginCmd.Stdin = strings.NewReader(string(password))
 	dockerLoginCmd.Stdout = os.Stdout
 	dockerLoginCmd.Stderr = os.Stderr

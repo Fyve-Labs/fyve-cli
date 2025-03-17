@@ -69,12 +69,15 @@ func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, 
 		}
 	}
 
+	// Replace region template with the extracted region
+	registry = strings.Replace(registry, "{region}", awsRegion, 1)
+
 	// Load AWS configuration
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(awsRegion),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load AWS config: %w", err)
+		return nil, fmt.Errorf("failed to load AWS config for region %s: %w", awsRegion, err)
 	}
 
 	// Create ECR client
@@ -82,13 +85,16 @@ func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, 
 
 	// Get AWS account ID if needed
 	accountID := ""
-	if strings.Contains(registry, "aws_account_id") {
+	if strings.Contains(registry, "{aws_account_id}") || strings.Contains(registry, "aws_account_id") {
 		stsClient := sts.NewFromConfig(cfg)
 		identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to get AWS account ID: %w", err)
+			return nil, fmt.Errorf("failed to get AWS account ID using region %s. Make sure you have valid AWS credentials configured: %w", awsRegion, err)
 		}
 		accountID = *identity.Account
+		// Replace both possible formats
+		registry = strings.Replace(registry, "{aws_account_id}", accountID, 1)
+		registry = strings.Replace(registry, "aws_account_id", accountID, 1)
 	}
 
 	return &NextJSBuilder{

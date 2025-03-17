@@ -96,6 +96,20 @@ Fyve uses AWS SDK for Go v2 for direct integration with AWS services, providing 
 
 You need to have AWS credentials configured in the standard AWS SDK locations (environment variables, ~/.aws/credentials, etc.) with appropriate permissions to create and access ECR repositories.
 
+#### Registry URL Format
+
+The default registry URL format is `{aws_account_id}.dkr.ecr.{region}.amazonaws.com`. Fyve will automatically:
+
+1. Replace `{region}` with the region from your configuration (using `AWS_REGION` from your environment variables or config file)
+2. Replace `{aws_account_id}` with your AWS account ID (retrieved using your AWS credentials)
+
+If you want to use a specific ECR registry, you can use the `--registry` flag to provide the full ECR URL, e.g.:
+```
+fyve deploy --registry 123456789012.dkr.ecr.us-east-1.amazonaws.com
+```
+
+**Important**: Valid AWS credentials must be configured in your environment for Fyve to successfully connect to AWS services. Make sure you have the AWS CLI configured or appropriate environment variables set.
+
 ### Traefik Integration
 
 When deploying to the production environment, Fyve automatically configures Traefik labels for your container:
