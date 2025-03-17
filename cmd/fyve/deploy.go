@@ -32,6 +32,7 @@ func DeployCmd() *cobra.Command {
 		dockerHost  string
 		port        string
 		imagePrefix string
+		platform    string
 	)
 
 	cmd := &cobra.Command{
@@ -82,7 +83,10 @@ func DeployCmd() *cobra.Command {
 			}
 
 			// Set up builder
-			builder := builder.NewNextJSBuilder(projectDir, appName, registry, imagePrefix)
+			builder, err := builder.NewNextJSBuilder(projectDir, appName, registry, imagePrefix, platform)
+			if err != nil {
+				return fmt.Errorf("failed to initialize builder: %w", err)
+			}
 
 			// Build the NextJS application
 			if err := builder.Build(); err != nil {
@@ -95,7 +99,7 @@ func DeployCmd() *cobra.Command {
 			}
 
 			// Deploy to remote Docker host
-			deployer, err := deployer.NewDockerDeployer(appName, registry, dockerHost, port, resolvedEnv)
+			deployer, err := deployer.NewDockerDeployer(appName, registry, dockerHost, port, resolvedEnv, imagePrefix)
 			if err != nil {
 				return fmt.Errorf("failed to create deployer: %w", err)
 			}
@@ -116,6 +120,7 @@ func DeployCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&dockerHost, "docker-host", "d", DefaultDockerHost, "Remote Docker host URL")
 	cmd.Flags().StringVarP(&port, "port", "p", DefaultPort, "Port to expose on the host")
 	cmd.Flags().StringVarP(&imagePrefix, "image-prefix", "i", "fyve-", "Prefix for Docker image names")
+	cmd.Flags().StringVar(&platform, "platform", "linux/amd64", "Target platform for Docker build (e.g., linux/amd64, linux/arm64)")
 
 	return cmd
 }

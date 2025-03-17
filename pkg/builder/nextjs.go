@@ -1,12 +1,20 @@
 package builder
 
 import (
+	"context"
 	"embed"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ecr"
+	"github.com/aws/aws-sdk-go-v2/service/ecr/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 //go:embed nextjs.Dockerfile
@@ -19,13 +27,56 @@ type NextJSBuilder struct {
 	ImageName   string
 	Registry    string
 	ImagePrefix string
+	ecrClient   *ecr.Client
+	awsRegion   string
+	accountID   string
+	ctx         context.Context
+	Platform    string // Target platform for Docker build
 }
 
 // NewNextJSBuilder creates a new NextJS builder
-func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string) *NextJSBuilder {
+func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, platform string) (*NextJSBuilder, error) {
 	// Default prefix to "fyve-" if not provided
 	if imagePrefix == "" {
 		imagePrefix = "fyve-"
+	}
+
+	// Default platform to linux/amd64 if not provided
+	if platform == "" {
+		platform = "linux/amd64"
+	}
+
+	ctx := context.Background()
+
+	// Extract region from registry URL (format: account.dkr.ecr.region.amazonaws.com)
+	awsRegion := "us-east-1" // Default region
+	if strings.Contains(registry, ".amazonaws.com") {
+		parts := strings.Split(registry, ".")
+		if len(parts) >= 4 {
+			awsRegion = parts[3]
+		}
+	}
+
+	// Load AWS configuration
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(awsRegion),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
+	}
+
+	// Create ECR client
+	ecrClient := ecr.NewFromConfig(cfg)
+
+	// Get AWS account ID if needed
+	accountID := ""
+	if strings.Contains(registry, "aws_account_id") {
+		stsClient := sts.NewFromConfig(cfg)
+		identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get AWS account ID: %w", err)
+		}
+		accountID = *identity.Account
 	}
 
 	return &NextJSBuilder{
@@ -34,12 +85,17 @@ func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string) 
 		ImageName:   fmt.Sprintf("%s%s:%s", imagePrefix, appName, "latest"),
 		Registry:    registry,
 		ImagePrefix: imagePrefix,
-	}
+		ecrClient:   ecrClient,
+		awsRegion:   awsRegion,
+		accountID:   accountID,
+		ctx:         ctx,
+		Platform:    platform,
+	}, nil
 }
 
 // Build creates a Docker image for the NextJS application
 func (b *NextJSBuilder) Build() error {
-	fmt.Println("Building Docker image for NextJS application...")
+	fmt.Printf("Building Docker image for NextJS application (platform: %s)...\n", b.Platform)
 
 	// Check if Dockerfile exists, or use default one
 	dockerfile := filepath.Join(b.ProjectDir, "Dockerfile")
@@ -67,35 +123,47 @@ func (b *NextJSBuilder) Build() error {
 		defer os.Remove(tempDockerfile)
 	}
 
-	// Build Docker image
-	cmd := exec.Command("docker", "build", "-f", dockerfilePath, "-t", b.ImageName, b.ProjectDir)
+	// Build Docker image with platform specified
+	cmd := exec.Command("docker", "build",
+		"--platform", b.Platform,
+		"-f", dockerfilePath,
+		"-t", b.ImageName,
+		b.ProjectDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
 }
 
+// GetECRRepositoryName returns the ECR repository name with the correct prefix
+func (b *NextJSBuilder) GetECRRepositoryName() string {
+	return fmt.Sprintf("%s%s", b.ImagePrefix, b.AppName)
+}
+
 // EnsureECRRepositoryExists creates the ECR repository if it doesn't exist
 func (b *NextJSBuilder) EnsureECRRepositoryExists() error {
 	fmt.Println("Ensuring ECR repository exists...")
 
-	// Extract repository name from registry URL (assuming format: account.dkr.ecr.region.amazonaws.com)
-	repositoryName := fmt.Sprintf("%s-%s", b.ImagePrefix, b.AppName)
+	repositoryName := b.GetECRRepositoryName()
 
-	// Check if repository exists using AWS CLI
-	checkCmd := exec.Command("aws", "ecr", "describe-repositories", "--repository-names", repositoryName)
+	// Check if repository exists
+	_, err := b.ecrClient.DescribeRepositories(b.ctx, &ecr.DescribeRepositoriesInput{
+		RepositoryNames: []string{repositoryName},
+	})
 
-	// Redirect stderr to avoid printing errors when repository doesn't exist
-	checkCmd.Stderr = nil
-
-	if err := checkCmd.Run(); err != nil {
+	if err != nil {
 		// Repository doesn't exist, create it
 		fmt.Printf("Creating ECR repository '%s'...\n", repositoryName)
-		createCmd := exec.Command("aws", "ecr", "create-repository", "--repository-name", repositoryName)
-		createCmd.Stdout = os.Stdout
-		createCmd.Stderr = os.Stderr
 
-		if err := createCmd.Run(); err != nil {
+		_, err = b.ecrClient.CreateRepository(b.ctx, &ecr.CreateRepositoryInput{
+			RepositoryName:     aws.String(repositoryName),
+			ImageTagMutability: types.ImageTagMutabilityMutable,
+			ImageScanningConfiguration: &types.ImageScanningConfiguration{
+				ScanOnPush: true,
+			},
+		})
+
+		if err != nil {
 			return fmt.Errorf("failed to create ECR repository: %w", err)
 		}
 
@@ -107,6 +175,48 @@ func (b *NextJSBuilder) EnsureECRRepositoryExists() error {
 	return nil
 }
 
+// GetECRAuthToken gets authorization token for ECR
+func (b *NextJSBuilder) GetECRAuthToken() (username string, password string, endpoint string, err error) {
+	output, err := b.ecrClient.GetAuthorizationToken(b.ctx, &ecr.GetAuthorizationTokenInput{})
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to get ECR authorization token: %w", err)
+	}
+
+	if len(output.AuthorizationData) == 0 {
+		return "", "", "", fmt.Errorf("no authorization data returned")
+	}
+
+	authData := output.AuthorizationData[0]
+	authToken := *authData.AuthorizationToken
+	endpoint = *authData.ProxyEndpoint
+
+	// Decode the token
+	decodedToken, err := base64.StdEncoding.DecodeString(authToken)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to decode authorization token: %w", err)
+	}
+
+	// Format is "username:password"
+	tokenParts := strings.Split(string(decodedToken), ":")
+	if len(tokenParts) != 2 {
+		return "", "", "", fmt.Errorf("invalid token format")
+	}
+
+	return tokenParts[0], tokenParts[1], endpoint, nil
+}
+
+// GetECRRegistryURL returns the ECR registry URL
+func (b *NextJSBuilder) GetECRRegistryURL() string {
+	registry := b.Registry
+
+	// Replace account ID placeholder if needed
+	if strings.Contains(registry, "aws_account_id") && b.accountID != "" {
+		registry = strings.Replace(registry, "aws_account_id", b.accountID, 1)
+	}
+
+	return registry
+}
+
 // PushToECR uploads the built image to AWS ECR
 func (b *NextJSBuilder) PushToECR() error {
 	fmt.Println("Pushing Docker image to AWS ECR...")
@@ -116,47 +226,77 @@ func (b *NextJSBuilder) PushToECR() error {
 		return err
 	}
 
-	// Get AWS account ID from registry URL if needed
-	registry := b.Registry
-	if strings.Contains(registry, "aws_account_id") {
-		// We need to get the actual AWS account ID
-		cmd := exec.Command("aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text")
-		accountIDBytes, err := cmd.Output()
-		if err != nil {
-			return fmt.Errorf("failed to get AWS account ID: %w", err)
-		}
+	// Get ECR registry URL
+	registry := b.GetECRRegistryURL()
 
-		accountID := strings.TrimSpace(string(accountIDBytes))
-		registry = strings.Replace(registry, "aws_account_id", accountID, 1)
-	}
+	// Skip Docker login with AWS SDK and use AWS CLI directly
+	// This avoids Docker credential storage issues
+	fmt.Println("Authenticating with AWS ECR...")
 
-	// Login to ECR
-	awsRegion := ""
-	if strings.Contains(registry, ".amazonaws.com") {
-		// Extract region from registry URL (format: account.dkr.ecr.region.amazonaws.com)
-		parts := strings.Split(registry, ".")
-		if len(parts) >= 4 {
-			awsRegion = parts[3]
-		}
-	}
-
-	if awsRegion == "" {
-		awsRegion = "us-east-1" // Default region
-	}
-
-	loginCmd := exec.Command("aws", "ecr", "get-login-password", "--region", awsRegion)
-	loginPassword, err := loginCmd.Output()
+	// Use AWS CLI to get the login command
+	getLoginCmd := exec.Command("aws", "ecr", "get-login", "--no-include-email", "--region", b.awsRegion)
+	loginOutput, err := getLoginCmd.Output()
 	if err != nil {
-		return fmt.Errorf("failed to get ECR login password: %w", err)
-	}
+		// If aws ecr get-login fails, try alternative AWS CLI command
+		fmt.Println("Trying alternative ECR login method...")
 
-	dockerLoginCmd := exec.Command("docker", "login", "--username", "AWS", "--password-stdin", registry)
-	dockerLoginCmd.Stdin = strings.NewReader(string(loginPassword))
-	dockerLoginCmd.Stdout = os.Stdout
-	dockerLoginCmd.Stderr = os.Stderr
+		// Use AWS CLI to get the login password and pipe it to docker login
+		passwordCmd := exec.Command("aws", "ecr", "get-login-password", "--region", b.awsRegion)
+		passwordBytes, err := passwordCmd.Output()
+		if err != nil {
+			return fmt.Errorf("failed to get ECR login password: %w", err)
+		}
 
-	if err := dockerLoginCmd.Run(); err != nil {
-		return fmt.Errorf("failed to login to ECR: %w", err)
+		password := strings.TrimSpace(string(passwordBytes))
+		loginCmd := exec.Command("docker", "login",
+			"--username", "AWS",
+			"--password-stdin",
+			registry)
+
+		loginCmd.Stdin = strings.NewReader(password)
+		loginCmd.Stdout = os.Stdout
+		loginCmd.Stderr = os.Stderr
+
+		if err := loginCmd.Run(); err != nil {
+			// One more fallback option - bypass Docker credential store completely
+			fmt.Println("Trying last fallback ECR login method...")
+
+			// Create a temporary file with the Docker config containing the auth token
+			tempConfigDir, err := os.MkdirTemp("", "docker-config")
+			if err != nil {
+				return fmt.Errorf("failed to create temp directory: %w", err)
+			}
+			defer os.RemoveAll(tempConfigDir)
+
+			// Create Docker config structure with ECR auth
+			auth := base64.StdEncoding.EncodeToString([]byte("AWS:" + password))
+			dockerConfig := fmt.Sprintf(`{
+				"auths": {
+					"%s": {
+						"auth": "%s"
+					}
+				}
+			}`, registry, auth)
+
+			configPath := filepath.Join(tempConfigDir, "config.json")
+			if err := os.WriteFile(configPath, []byte(dockerConfig), 0600); err != nil {
+				return fmt.Errorf("failed to write Docker config: %w", err)
+			}
+
+			// Set DOCKER_CONFIG environment variable for subsequent Docker commands
+			os.Setenv("DOCKER_CONFIG", tempConfigDir)
+
+			fmt.Println("Using temporary Docker credentials configuration")
+		}
+	} else {
+		// Execute the login command directly
+		loginCmd := exec.Command("sh", "-c", string(loginOutput))
+		loginCmd.Stdout = os.Stdout
+		loginCmd.Stderr = os.Stderr
+
+		if err := loginCmd.Run(); err != nil {
+			return fmt.Errorf("failed to login to ECR: %w", err)
+		}
 	}
 
 	// Tag the image for ECR

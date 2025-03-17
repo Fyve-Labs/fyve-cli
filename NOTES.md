@@ -15,3 +15,10 @@ Build a command line application using GO. The CLI is named "fyve", its main fea
 - CLI create ECR repository if it does not exists ✅
 - CLI connects to remote docker host to deploy app with newly built image
 - The project must be extensible for further support deployment other project types, not just NextJs
+- If enviromnet is prod, attach these labels to docker deployment: ✅
+    - "traefik.enable=true"
+    - "traefik.http.routers.app-name.rule=Host(`app-name.fyve.dev`)"
+    - "traefik.http.routers.app-name.tls.certresolver=default"
+    - "traefik.http.services.app-name.loadbalancer.server.port=3000"
+    - "traefik.http.routers.app-name.entrypoints=websecure"
+- If enviromnet is prod, attach docker deployment to network "public" ✅

@@ -73,11 +73,26 @@ Fyve automatically uses a default Dockerfile optimized for NextJS apps if one do
 ### AWS ECR Integration
 
 When deploying, Fyve automatically:
-1. Creates the ECR repository if it doesn't exist
-2. Logs in to ECR
+1. Creates the ECR repository if it doesn't exist using AWS SDK v2
+2. Logs in to ECR using secure authentication via AWS SDK v2
 3. Tags and pushes your Docker image
 
-You need to have the AWS CLI configured with appropriate permissions to create and access ECR repositories.
+Fyve uses AWS SDK for Go v2 for direct integration with AWS services, providing improved error handling, context support, and better concurrency. This eliminates the need for the AWS CLI to be installed on your system for ECR operations.
+
+You need to have AWS credentials configured in the standard AWS SDK locations (environment variables, ~/.aws/credentials, etc.) with appropriate permissions to create and access ECR repositories.
+
+### Traefik Integration
+
+When deploying to the production environment, Fyve automatically configures Traefik labels for your container:
+
+- Enables Traefik routing
+- Sets up a domain name `<app-name>.fyve.dev`
+- Configures TLS with automatic certificate generation
+- Routes traffic through the WebSecure entrypoint
+- Maps to internal port 3000
+- Attaches containers to the "public" network for proper routing
+
+This allows your application to be immediately accessible via HTTPS with proper routing and load balancing, without any additional configuration.
 
 ## Command Line Options
 
@@ -92,8 +107,9 @@ Flags:
   -i, --image-prefix string   Prefix for Docker image names (default "fyve-")
   -p, --port string           Port to expose on the host (default "3000")
   -r, --registry string       ECR registry URL (default "aws_account_id.dkr.ecr.region.amazonaws.com")
+      --platform string       Target platform for Docker build (default "linux/amd64")
 ```
 
 ## License
 
-MIT 
+MIT
