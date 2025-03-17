@@ -14,7 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecr/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 //go:embed nextjs.Dockerfile
@@ -29,29 +28,13 @@ type NextJSBuilder struct {
 	ImagePrefix string
 	ecrClient   *ecr.Client
 	awsRegion   string
-	accountID   string
 	ctx         context.Context
 	Platform    string // Target platform for Docker build
 	Environment string // Deployment environment
 }
 
 // NewNextJSBuilder creates a new NextJS builder
-func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, platform string, environment string) (*NextJSBuilder, error) {
-	// Default prefix to "fyve-" if not provided
-	if imagePrefix == "" {
-		imagePrefix = "fyve-"
-	}
-
-	// Default platform to linux/amd64 if not provided
-	if platform == "" {
-		platform = "linux/amd64"
-	}
-
-	// Default environment to prod if not provided
-	if environment == "" {
-		environment = "prod"
-	}
-
+func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, platform string, environment string, awsRegion string) (*NextJSBuilder, error) {
 	// Use "latest" tag for production, environment name for other environments
 	imageTag := environment
 	if environment == "prod" {
@@ -59,18 +42,6 @@ func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, 
 	}
 
 	ctx := context.Background()
-
-	// Extract region from registry URL (format: account.dkr.ecr.region.amazonaws.com)
-	awsRegion := "us-east-1" // Default region
-	if strings.Contains(registry, ".amazonaws.com") {
-		parts := strings.Split(registry, ".")
-		if len(parts) >= 4 {
-			awsRegion = parts[3]
-		}
-	}
-
-	// Replace region template with the extracted region
-	registry = strings.Replace(registry, "{region}", awsRegion, 1)
 
 	// Load AWS configuration
 	cfg, err := config.LoadDefaultConfig(ctx,
@@ -83,20 +54,6 @@ func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, 
 	// Create ECR client
 	ecrClient := ecr.NewFromConfig(cfg)
 
-	// Get AWS account ID if needed
-	accountID := ""
-	if strings.Contains(registry, "{aws_account_id}") || strings.Contains(registry, "aws_account_id") {
-		stsClient := sts.NewFromConfig(cfg)
-		identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-		if err != nil {
-			return nil, fmt.Errorf("failed to get AWS account ID using region %s. Make sure you have valid AWS credentials configured: %w", awsRegion, err)
-		}
-		accountID = *identity.Account
-		// Replace both possible formats
-		registry = strings.Replace(registry, "{aws_account_id}", accountID, 1)
-		registry = strings.Replace(registry, "aws_account_id", accountID, 1)
-	}
-
 	return &NextJSBuilder{
 		ProjectDir:  projectDir,
 		AppName:     appName,
@@ -105,7 +62,6 @@ func NewNextJSBuilder(projectDir, appName, registry string, imagePrefix string, 
 		ImagePrefix: imagePrefix,
 		ecrClient:   ecrClient,
 		awsRegion:   awsRegion,
-		accountID:   accountID,
 		ctx:         ctx,
 		Platform:    platform,
 		Environment: environment,
@@ -275,18 +231,6 @@ func (b *NextJSBuilder) GetECRAuthToken() (username string, password string, end
 	return tokenParts[0], tokenParts[1], endpoint, nil
 }
 
-// GetECRRegistryURL returns the ECR registry URL
-func (b *NextJSBuilder) GetECRRegistryURL() string {
-	registry := b.Registry
-
-	// Replace account ID placeholder if needed
-	if strings.Contains(registry, "aws_account_id") && b.accountID != "" {
-		registry = strings.Replace(registry, "aws_account_id", b.accountID, 1)
-	}
-
-	return registry
-}
-
 // PushToECR uploads the built image to AWS ECR
 func (b *NextJSBuilder) PushToECR() error {
 	// Get tag from image name
@@ -304,7 +248,7 @@ func (b *NextJSBuilder) PushToECR() error {
 	}
 
 	// Get ECR registry URL
-	registry := b.GetECRRegistryURL()
+	registry := b.Registry
 
 	// Skip Docker login with AWS SDK and use AWS CLI directly
 	// This avoids Docker credential storage issues

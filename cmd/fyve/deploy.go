@@ -1,6 +1,7 @@
 package fyve
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -14,6 +15,8 @@ import (
 
 // Environment variables
 const (
+	DefaultRegion = "us-east-1"
+
 	// DefaultECRRegistry is the default ECR registry URL template
 	DefaultECRRegistry = "{aws_account_id}.dkr.ecr.{region}.amazonaws.com"
 
@@ -27,6 +30,7 @@ const (
 // DeployCmd returns the deploy command
 func DeployCmd() *cobra.Command {
 	var (
+		awsRegion   string
 		environment string
 		configFile  string
 		registry    string
@@ -64,14 +68,12 @@ func DeployCmd() *cobra.Command {
 				return fmt.Errorf("app name must be specified in config or as an argument")
 			}
 
-			// Resolve secrets in environment variables
-			awsRegion := "us-east-1" // Default region
-			if region, ok := cfg.Env["AWS_REGION"]; ok {
-				awsRegion = region
-			}
-
 			// Replace templated values in registry URL
 			registry = strings.Replace(registry, "{region}", awsRegion, 1)
+			registry, err = deployer.ReplaceAWSAccountID(context.Background(), registry, awsRegion)
+			if err != nil {
+				return fmt.Errorf("failed to replace AWS account ID: %w", err)
+			}
 
 			// Create SSM manager using AWS SDK v2
 			secretManager, err := secrets.NewSSMManager(awsRegion)
@@ -86,7 +88,7 @@ func DeployCmd() *cobra.Command {
 			}
 
 			// Set up builder
-			builder, err := builder.NewNextJSBuilder(projectDir, appName, registry, imagePrefix, platform, environment)
+			builder, err := builder.NewNextJSBuilder(projectDir, appName, registry, imagePrefix, platform, environment, awsRegion)
 			if err != nil {
 				return fmt.Errorf("failed to initialize builder: %w", err)
 			}
@@ -102,7 +104,7 @@ func DeployCmd() *cobra.Command {
 			}
 
 			// Deploy to remote Docker host
-			deployer, err := deployer.NewDockerDeployer(appName, registry, dockerHost, DefaultPort, resolvedEnv, imagePrefix)
+			deployer, err := deployer.NewDockerDeployer(appName, registry, dockerHost, awsRegion, resolvedEnv, imagePrefix)
 			if err != nil {
 				return fmt.Errorf("failed to create deployer: %w", err)
 			}
@@ -120,6 +122,7 @@ func DeployCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&environment, "environment", "e", "prod", "Deployment environment (prod, staging, dev, test, preview)")
 	cmd.Flags().StringVarP(&configFile, "config", "c", "fyve.yaml", "Path to configuration file")
 	cmd.Flags().StringVarP(&registry, "registry", "r", DefaultECRRegistry, "ECR registry URL (format: {aws_account_id}.dkr.ecr.{region}.amazonaws.com)")
+	cmd.Flags().StringVarP(&awsRegion, "region", "", DefaultRegion, "AWS region")
 	cmd.Flags().StringVarP(&dockerHost, "docker-host", "d", DefaultDockerHost, "Remote Docker host URL")
 	cmd.Flags().StringVarP(&imagePrefix, "image-prefix", "i", "fyve-", "Prefix for Docker image names")
 	cmd.Flags().StringVar(&platform, "platform", "linux/amd64", "Target platform for Docker build (e.g., linux/amd64, linux/arm64)")

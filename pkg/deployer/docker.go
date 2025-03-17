@@ -10,7 +10,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 // DockerDeployer handles deploying to a remote Docker host
@@ -24,47 +23,7 @@ type DockerDeployer struct {
 }
 
 // NewDockerDeployer creates a new Docker deployer
-func NewDockerDeployer(appName, registry, remoteHost, port string, env map[string]string, imagePrefix string) (*DockerDeployer, error) {
-	// Default prefix to "fyve-" if not provided
-	if imagePrefix == "" {
-		imagePrefix = "fyve-"
-	}
-
-	// Extract region from registry URL (format: account.dkr.ecr.region.amazonaws.com)
-	awsRegion := "us-east-1" // Default region
-	if region, ok := env["AWS_REGION"]; ok {
-		awsRegion = region
-	} else if strings.Contains(registry, ".amazonaws.com") {
-		parts := strings.Split(registry, ".")
-		if len(parts) >= 4 {
-			awsRegion = parts[3]
-		}
-	}
-
-	// Replace region template
-	registry = strings.Replace(registry, "{region}", awsRegion, 1)
-
-	// Load AWS config to get account ID if needed
-	if strings.Contains(registry, "{aws_account_id}") || strings.Contains(registry, "aws_account_id") {
-		ctx := context.Background()
-		cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(awsRegion))
-		if err != nil {
-			return nil, fmt.Errorf("failed to load AWS config for region %s: %w", awsRegion, err)
-		}
-
-		// Get AWS account ID
-		stsClient := sts.NewFromConfig(cfg)
-		identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-		if err != nil {
-			return nil, fmt.Errorf("failed to get AWS account ID using region %s: %w", awsRegion, err)
-		}
-
-		accountID := *identity.Account
-		// Replace both formats
-		registry = strings.Replace(registry, "{aws_account_id}", accountID, 1)
-		registry = strings.Replace(registry, "aws_account_id", accountID, 1)
-	}
-
+func NewDockerDeployer(appName, registry, remoteHost, awsRegion string, env map[string]string, imagePrefix string) (*DockerDeployer, error) {
 	return &DockerDeployer{
 		registry:    registry,
 		appName:     appName,
