@@ -25,36 +25,19 @@ func NewDockerDeployer(appName string, buildConfig *config.Build, remoteHost str
 	}, nil
 }
 
-// authenticateECR authenticates with ECR to get valid credentials for pulling images
-func (d *DockerDeployer) authenticateECR() error {
-	fmt.Println("Authenticating with ECR before pulling image...")
-
-	return nil
-}
-
 // Deploy deploys the application to the remote Docker host
 func (d *DockerDeployer) Deploy(environment string) error {
 	imageName := d.buildConfig.GetImage()
 	containerName := fmt.Sprintf("%s-%s", d.appName, environment)
-
 	fmt.Printf("Deploying image %s to %s environment\n", imageName, environment)
-
-	// Authenticate with ECR before pulling
-	//if err := d.authenticateECR(); err != nil {
-	//	return fmt.Errorf("failed to authenticate with ECR: %w", err)
-	//}
 
 	// Prepare docker command with remote host if specified
 	dockerCmd := "docker"
 	if d.remoteHost != "" {
 		dockerCmd = fmt.Sprintf("docker -H %s", d.remoteHost)
-		fmt.Printf("Using remote Docker host: %s\n", d.remoteHost)
-	} else {
-		fmt.Println("Using local Docker daemon")
 	}
 
 	// Pull the image
-	fmt.Println("Pulling image...")
 	pullCmd := exec.Command("sh", "-c", fmt.Sprintf("%s pull %s", dockerCmd, imageName))
 	pullCmd.Stdout = os.Stdout
 	pullCmd.Stderr = os.Stderr
