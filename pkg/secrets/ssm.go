@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
 
@@ -15,21 +14,7 @@ type SSMManager struct {
 }
 
 // NewSSMManager creates a new AWS SSM Parameter Store manager
-func NewSSMManager(region string) (*SSMManager, error) {
-	ctx := context.Background()
-
-	// Load AWS configuration
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(region),
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AWS config: %w", err)
-	}
-
-	// Create SSM client
-	client := ssm.NewFromConfig(cfg)
-
+func NewSSMManager(client *ssm.Client) (*SSMManager, error) {
 	return &SSMManager{
 		ssmClient: client,
 	}, nil
@@ -39,8 +24,7 @@ func NewSSMManager(region string) (*SSMManager, error) {
 func (m *SSMManager) GetSecret(secretRef string, environment string) (string, error) {
 	ctx := context.Background()
 
-	// Parse secret reference, expected format: secret:app-name/environment/SECRET_NAME
-	// or secret:app-name/{environment}/SECRET_NAME
+	// Parse secret reference, expected format: secret:/app-name/{environment}/SECRET_NAME
 	if !strings.HasPrefix(secretRef, "secret:") {
 		return "", fmt.Errorf("invalid secret reference format: %s", secretRef)
 	}

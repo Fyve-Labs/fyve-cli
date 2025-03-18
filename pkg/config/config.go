@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fyve-labs/fyve-cli/pkg/secrets"
 	"gopkg.in/yaml.v3"
 )
 
@@ -36,28 +35,9 @@ func (c *Config) OverrideAppName(appName string) {
 	}
 }
 
-// ProcessSecrets handles any secret references in configuration
-func (c *Config) ProcessSecrets(environment string) error {
-	// Get AWS region from environment variables or use default
-	awsRegion := "us-east-1"
-	if region, ok := c.Env["AWS_REGION"]; ok {
-		awsRegion = region
+func (c *Config) BuildConfig(environment string) *Build {
+	return &Build{
+		appName:     c.App,
+		environment: environment,
 	}
-
-	// Create SSM manager
-	secretManager, err := secrets.NewSSMManager(awsRegion)
-	if err != nil {
-		return fmt.Errorf("failed to initialize secrets manager: %w", err)
-	}
-
-	// Resolve secrets in environment variables
-	resolvedEnv, err := secretManager.ProcessSecretRefs(c.Env, environment)
-	if err != nil {
-		return fmt.Errorf("failed to process secrets: %w", err)
-	}
-
-	// Update environment variables with resolved secrets
-	c.Env = resolvedEnv
-
-	return nil
 }

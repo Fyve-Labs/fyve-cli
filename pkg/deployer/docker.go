@@ -1,36 +1,27 @@
 package deployer
 
 import (
-	"context"
-	"encoding/base64"
 	"fmt"
+	"github.com/fyve-labs/fyve-cli/pkg/config"
 	"os"
 	"os/exec"
-	"strings"
-
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/ecr"
 )
 
 // DockerDeployer handles deploying to a remote Docker host
 type DockerDeployer struct {
-	registry    string
 	appName     string
+	buildConfig *config.Build
 	env         map[string]string
 	remoteHost  string
-	imagePrefix string
-	awsRegion   string
 }
 
 // NewDockerDeployer creates a new Docker deployer
-func NewDockerDeployer(appName, registry, remoteHost, awsRegion string, env map[string]string, imagePrefix string) (*DockerDeployer, error) {
+func NewDockerDeployer(appName string, buildConfig *config.Build, remoteHost string, env map[string]string) (*DockerDeployer, error) {
 	return &DockerDeployer{
-		registry:    registry,
 		appName:     appName,
+		buildConfig: buildConfig,
 		env:         env,
 		remoteHost:  remoteHost,
-		imagePrefix: imagePrefix,
-		awsRegion:   awsRegion,
 	}, nil
 }
 
@@ -38,88 +29,20 @@ func NewDockerDeployer(appName, registry, remoteHost, awsRegion string, env map[
 func (d *DockerDeployer) authenticateECR() error {
 	fmt.Println("Authenticating with ECR before pulling image...")
 
-	ctx := context.Background()
-
-	// Load AWS configuration
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(d.awsRegion),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to load AWS config: %w", err)
-	}
-
-	// Create ECR client
-	ecrClient := ecr.NewFromConfig(cfg)
-
-	// Get authorization token
-	output, err := ecrClient.GetAuthorizationToken(ctx, &ecr.GetAuthorizationTokenInput{})
-	if err != nil {
-		return fmt.Errorf("failed to get ECR authorization token: %w", err)
-	}
-
-	if len(output.AuthorizationData) == 0 {
-		return fmt.Errorf("no authorization data returned from ECR")
-	}
-
-	// Get auth data
-	authData := output.AuthorizationData[0]
-	authToken := *authData.AuthorizationToken
-
-	// Decode the token
-	decodedToken, err := base64.StdEncoding.DecodeString(authToken)
-	if err != nil {
-		return fmt.Errorf("failed to decode authorization token: %w", err)
-	}
-
-	// Format is "username:password"
-	tokenParts := strings.Split(string(decodedToken), ":")
-	if len(tokenParts) != 2 {
-		return fmt.Errorf("invalid token format")
-	}
-
-	// username := tokenParts[0]
-	password := tokenParts[1]
-
-	// Login to Docker with the credentials
-	// Use AWS CLI directly to ensure authentication
-	// awsLoginCmd := exec.Command("aws", "ecr", "get-login-password", "--region", d.awsRegion)
-	// awsPassword, err := awsLoginCmd.Output()
-	// if err != nil {
-	// 	return fmt.Errorf("failed to get ECR login password via AWS CLI: %w", err)
-	// }
-
-	// Login with docker
-	dockerLoginCmd := exec.Command("docker", "login", "--username", "AWS", "--password-stdin", d.registry)
-	dockerLoginCmd.Stdin = strings.NewReader(string(password))
-	dockerLoginCmd.Stdout = os.Stdout
-	dockerLoginCmd.Stderr = os.Stderr
-
-	if err := dockerLoginCmd.Run(); err != nil {
-		return fmt.Errorf("failed to login to ECR with all methods: %w", err)
-	}
-
-	fmt.Println("Successfully authenticated with ECR")
 	return nil
 }
 
 // Deploy deploys the application to the remote Docker host
 func (d *DockerDeployer) Deploy(environment string) error {
-	// Use "latest" tag for production, environment name for other environments
-	imageTag := environment
-	if environment == "prod" {
-		imageTag = "latest"
-	}
-
-	// Include the image prefix in the image name
-	imageName := fmt.Sprintf("%s/%s%s:%s", d.registry, d.imagePrefix, d.appName, imageTag)
+	imageName := d.buildConfig.GetImage()
 	containerName := fmt.Sprintf("%s-%s", d.appName, environment)
 
 	fmt.Printf("Deploying image %s to %s environment\n", imageName, environment)
 
 	// Authenticate with ECR before pulling
-	if err := d.authenticateECR(); err != nil {
-		return fmt.Errorf("failed to authenticate with ECR: %w", err)
-	}
+	//if err := d.authenticateECR(); err != nil {
+	//	return fmt.Errorf("failed to authenticate with ECR: %w", err)
+	//}
 
 	// Prepare docker command with remote host if specified
 	dockerCmd := "docker"
@@ -178,7 +101,7 @@ func (d *DockerDeployer) Deploy(environment string) error {
 	}
 
 	// Add NODE_ENV
-	runCmdArgs = append(runCmdArgs, "-e", fmt.Sprintf("NODE_ENV=%s", environment))
+	runCmdArgs = append(runCmdArgs, "-e", fmt.Sprintf("FYVE_ENV=%s", environment))
 
 	// Add Traefik labels for production environment
 	if environment == "prod" {
