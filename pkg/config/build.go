@@ -43,9 +43,8 @@ func (b *Build) GetImage() string {
 }
 
 func (b *Build) EnsureECRRepositoryExists(ctx context.Context, client *ecr.Client) error {
+	fmt.Println("Ensuring ECR repository exists...")
 	repositoryName := b.GetRepositoryName()
-
-	// Check if repository exists
 	out, err := client.DescribeRepositories(ctx, &ecr.DescribeRepositoriesInput{
 		RepositoryNames: []string{repositoryName},
 	})

@@ -14,7 +14,6 @@ import (
 	"os"
 )
 
-// Environment variables
 const (
 	// DefaultDockerHost is the default Docker host to connect to
 	DefaultDockerHost = "" // Empty string means use local Docker daemon
@@ -22,7 +21,6 @@ const (
 )
 
 func init() {
-	// Add commands
 	rootCmd.AddCommand(DeployCmd())
 }
 
@@ -129,7 +127,7 @@ func DeployCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&environment, "environment", "e", "prod", "Deployment environment (prod, staging, dev, test, preview)")
 	cmd.Flags().StringVarP(&configFile, "config", "c", "fyve.yaml", "Path to configuration file")
 	cmd.Flags().StringVarP(&awsRegion, "region", "", "us-east-1", "AWS region")
-	cmd.Flags().StringVarP(&dockerHost, "docker-host", "d", "", "Remote Docker host URL")
+	cmd.Flags().StringVarP(&dockerHost, "docker-host", "d", DefaultDockerHost, "Remote Docker host URL")
 
 	return cmd
 }
