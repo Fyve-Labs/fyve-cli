@@ -66,7 +66,7 @@ verify_checksum() {
         return
     fi
 
-    if grep -q "$CHECKSUM.*bunster_$OS-$ARCH.tar.gz" checksums.txt; then
+    if grep -q "$CHECKSUM.*fyve-cli_$OS-$ARCH.tar.gz" checksums.txt; then
         log "Checksum verified successfully"
     else
         error "Checksum verification failed"
