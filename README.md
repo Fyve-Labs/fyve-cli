@@ -7,7 +7,7 @@ A command-line tool for building and deploying NextJS applications to remote Doc
 - Build NextJS applications using Docker
 - Push Docker images to AWS ECR
 - Deploy to remote Docker hosts
-- Handle secrets using AWS Systems Manager Parameter Store (using AWS SDK Go v2)
+- Handle secrets using AWS Systems Manager Parameter Store
 - Support for different environments (prod, staging, dev, test, preview)
 - Extensible architecture for future project types
 - Automatically use default Dockerfile if one doesn't exist in the project
@@ -86,8 +86,8 @@ Fyve automatically uses a default Dockerfile optimized for NextJS apps if one do
 ### AWS ECR Integration
 
 When deploying, Fyve automatically:
-1. Creates the ECR repository if it doesn't exist using AWS SDK v2
-2. Logs in to ECR using secure authentication via AWS SDK v2
+1. Creates the ECR repository if it doesn't exist
+2. Logs in to ECR using secure authentication
 3. Tags and pushes your Docker image
 
 For production environments, the image tag will be `latest`, while other environments (staging, dev, test, preview) will use the environment name as the image tag (e.g., `fyve-myapp:staging`). This helps with tracking which version is deployed to each environment.
@@ -95,20 +95,6 @@ For production environments, the image tag will be `latest`, while other environ
 Fyve uses AWS SDK for Go v2 for direct integration with AWS services, providing improved error handling, context support, and better concurrency. This eliminates the need for the AWS CLI to be installed on your system for ECR operations.
 
 You need to have AWS credentials configured in the standard AWS SDK locations (environment variables, ~/.aws/credentials, etc.) with appropriate permissions to create and access ECR repositories.
-
-#### Registry URL Format
-
-The default registry URL format is `{aws_account_id}.dkr.ecr.{region}.amazonaws.com`. Fyve will automatically:
-
-1. Replace `{region}` with the region from your configuration (using `AWS_REGION` from your environment variables or config file)
-2. Replace `{aws_account_id}` with your AWS account ID (retrieved using your AWS credentials)
-
-If you want to use a specific ECR registry, you can use the `--registry` flag to provide the full ECR URL, e.g.:
-```
-fyve deploy --registry 123456789012.dkr.ecr.us-east-1.amazonaws.com
-```
-
-**Important**: Valid AWS credentials must be configured in your environment for Fyve to successfully connect to AWS services. Make sure you have the AWS CLI configured or appropriate environment variables set.
 
 ### Traefik Integration
 
@@ -133,9 +119,6 @@ Flags:
   -d, --docker-host string    Remote Docker host URL (if not specified, uses local Docker daemon)
   -e, --environment string    Deployment environment (prod, staging, dev, test, preview) (default "prod")
   -h, --help                  help for deploy
-  -i, --image-prefix string   Prefix for Docker image names (default "fyve-")
-  -r, --registry string       ECR registry URL (default "aws_account_id.dkr.ecr.region.amazonaws.com")
-      --platform string       Target platform for Docker build (default "linux/amd64")
 ```
 
 ## License

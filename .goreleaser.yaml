@@ -9,6 +9,10 @@ builds:
     id: cli
     binary: fyve
     ldflags: -s -w
+    flags:
+      - -trimpath
+    env:
+      - CGO_ENABLED=0
     goos:
       - linux
       - darwin
@@ -17,4 +21,10 @@ builds:
       - arm64
 
 archives:
-  - format: binary
+  - formats: [ tar.gz ]
+    name_template: "fyve-cli_{{ .Os }}-{{ .Arch }}"
+    files:
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
