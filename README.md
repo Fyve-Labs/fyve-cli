@@ -16,15 +16,13 @@ A command-line tool for building and deploying NextJS applications to remote Doc
 ## Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/fyve-labs/fyve-cli.git
+curl -f https://raw.githubusercontent.com/fyve-labs/fyve-cli/refs/heads/main/install.sh | bash
+```
 
-# Build the application
-cd fyve-cli
-go build -o fyve
+The script will install fyve at ~/.local/bin/fyve on linux. And ~/bin/fyve on mac. If you want to install the binary system wide and make it accessible by all users.
 
-# Move to a directory in your PATH (optional)
-mv fyve /usr/local/bin/
+```bash
+curl -f https://raw.githubusercontent.com/fyve-labs/fyve-cli/refs/heads/main/install.sh | GLOBAL=1 bash
 ```
 
 ## Usage
