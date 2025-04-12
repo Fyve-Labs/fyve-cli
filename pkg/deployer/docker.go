@@ -12,13 +12,20 @@ type DockerDeployer struct {
 	appName     string
 	buildConfig *config.Build
 	env         map[string]string
+	appHost     string
 	remoteHost  string
 }
 
 // NewDockerDeployer creates a new Docker deployer
 func NewDockerDeployer(appName string, buildConfig *config.Build, remoteHost string, env map[string]string) (*DockerDeployer, error) {
+	appHost := fmt.Sprintf("%s.%s", appName, "fyve.dev")
+	if customAppHost := os.Getenv("CUSTOM_APP_HOST"); customAppHost != "" {
+		appHost = customAppHost
+	}
+
 	return &DockerDeployer{
 		appName:     appName,
+		appHost:     appHost,
 		buildConfig: buildConfig,
 		env:         env,
 		remoteHost:  remoteHost,
@@ -86,18 +93,17 @@ func (d *DockerDeployer) Deploy(environment string) error {
 	// Add NODE_ENV
 	runCmdArgs = append(runCmdArgs, "-e", fmt.Sprintf("FYVE_ENV=%s", environment))
 
+	routeName := fmt.Sprintf("%s-%s", d.appName, environment)
 	// Add Traefik labels for production environment
 	if environment == "prod" {
 		fmt.Println("Adding Traefik labels for production deployment...")
 
-		domainName := fmt.Sprintf("%s.fyve.dev", d.appName)
-
 		// Add labels with proper escaping
 		runCmdArgs = append(runCmdArgs, "--label", "traefik.enable=true")
-		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.routers.%s.rule=Host(`%s`)", d.appName, domainName))
-		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.routers.%s.tls.certresolver=default", d.appName))
-		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port=3000", d.appName))
-		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.routers.%s.entrypoints=websecure", d.appName))
+		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.routers.%s.rule=Host(`%s`)", routeName, d.appHost))
+		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.routers.%s.tls.certresolver=default", routeName))
+		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port=3000", routeName))
+		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.routers.%s.entrypoints=websecure", routeName))
 
 		// Attach to "public" network for production deployments
 		fmt.Println("Attaching container to 'public' network...")
