@@ -107,7 +107,7 @@ main() {
     log "Extracting archive"
     tar -xzf "$ARCHIVE"
 
-    if [[ "$GLOBAL" == "1" ]]; then
+    if [[ "$GLOBAL" == "1" ]] || [[ "$GITHUB_ACTIONS" == "true" ]]; then
 		log "Moving binary to /usr/local/bin"
 		sudo mv fyve /usr/local/bin/fyve
 		log "Installation complete!"
