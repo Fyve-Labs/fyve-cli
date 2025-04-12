@@ -15,6 +15,7 @@ import (
 type ContainerService struct {
 	client         *client.Client
 	registryClient *images.RegistryClient
+	sr             *serviceRestore
 }
 
 func NewContainerService(endpoint string) (*ContainerService, error) {
@@ -40,6 +41,7 @@ func NewContainerService(endpoint string) (*ContainerService, error) {
 	return &ContainerService{
 		client:         dockerClient,
 		registryClient: registry,
+		sr:             &serviceRestore{},
 	}, nil
 }
 
@@ -104,13 +106,38 @@ func (c *ContainerService) ReCreate(ctx context.Context, containerNameOrId strin
 		}
 	}
 
+	c.sr.enable()
+	defer c.sr.close()
+	defer c.sr.restore()
+
+	c.sr.push(func() {
+		slog.Debug("restoring the container")
+		_ = c.client.ContainerRename(ctx, containerId, container.Name)
+
+		for _, network := range container.NetworkSettings.Networks {
+			_ = c.client.NetworkConnect(ctx, network.NetworkID, containerId, network)
+		}
+
+		_ = c.client.ContainerStart(ctx, containerId, dockercontainer.StartOptions{})
+	})
+
+	slog.Debug("starting to create a new container")
+
 	// 6. create a new container
 	create, err := c.client.ContainerCreate(ctx, container.Config, container.HostConfig, &initialNetwork, nil, container.Name)
+
+	c.sr.push(func() {
+		slog.Debug("removing the new container")
+		_ = c.client.ContainerStop(ctx, create.ID, dockercontainer.StopOptions{})
+		_ = c.client.ContainerRemove(ctx, create.ID, dockercontainer.RemoveOptions{})
+	})
+
 	if err != nil {
 		return nil, errors.Wrap(err, "create container error")
 	}
 
 	newContainerId := create.ID
+
 	// 7. connect to networks
 	// docker can connect to only one network at creation, so we need to connect to networks after creation
 	// see https://github.com/moby/moby/issues/17750
@@ -136,6 +163,8 @@ func (c *ContainerService) ReCreate(ctx context.Context, containerNameOrId strin
 	// 9. delete the old container
 	slog.Debug("starting to remove the old container")
 	_ = c.client.ContainerRemove(ctx, containerId, dockercontainer.RemoveOptions{})
+
+	c.sr.disable()
 
 	newContainer, _, err := c.client.ContainerInspectWithRaw(ctx, newContainerId, true)
 	if err != nil {
@@ -167,4 +196,52 @@ func (c *ContainerService) Pull(ctx context.Context, img images.Image) error {
 	_, err = io.ReadAll(out)
 
 	return err
+}
+
+type serviceRestore struct {
+	restoreC chan struct{}
+	fs       []func()
+}
+
+func (sr *serviceRestore) enable() {
+	sr.restoreC = make(chan struct{}, 1)
+	sr.fs = make([]func(), 0)
+	sr.restoreC <- struct{}{}
+}
+
+func (sr *serviceRestore) disable() {
+	select {
+	case <-sr.restoreC:
+	default:
+	}
+}
+
+func (sr *serviceRestore) push(f func()) {
+	sr.fs = append(sr.fs, f)
+}
+
+func (sr *serviceRestore) restore() {
+	select {
+	case <-sr.restoreC:
+		l := len(sr.fs)
+		if l > 0 {
+			for i := l - 1; i >= 0; i-- {
+				sr.fs[i]()
+			}
+		}
+	default:
+	}
+}
+
+func (sr *serviceRestore) close() {
+	if sr == nil || sr.restoreC == nil {
+		return
+	}
+
+	select {
+	case <-sr.restoreC:
+	default:
+	}
+
+	close(sr.restoreC)
 }
