@@ -107,7 +107,7 @@ func SocketProxyCmd() *cobra.Command {
 				slog.Info("Stopped")
 			}()
 
-			slog.Info(fmt.Sprintf("Starting socket-proxy: %s:2375...", hostname))
+			slog.Info(fmt.Sprintf("Starting socket-proxy: %s:2375...", s.Hostname))
 			if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				slog.Error("proxy server problem", "error", err)
 				os.Exit(2)

@@ -16,8 +16,7 @@ import (
 
 const (
 	// DefaultDockerHost is the default Docker host to connect to
-	DefaultDockerHost = "" // Empty string means use local Docker daemon
-
+	DefaultDockerHost = "tcp://socket-proxy:2375"
 )
 
 func init() {
