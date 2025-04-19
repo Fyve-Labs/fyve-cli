@@ -22,9 +22,10 @@ builds:
 
 kos:
   - id: ghcr
-    repository: ghcr.io/fyve-labs/fyve-cli
+    repositories:
+      - ghcr.io/fyve-labs/fyve-cli
     bare: true
-    base_image: gcr.io/distroless/base-debian12
+    base_image: gcr.io/distroless/static-debian12
     build: fyve
     main: .
     env:
