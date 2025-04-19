@@ -67,7 +67,6 @@ func SocketProxyCmd() *cobra.Command {
 				Dir:        filepath.Join(stateDir, "tsnet"),
 				Hostname:   hostname,
 				ControlURL: loginServer,
-				Ephemeral:  true,
 			}
 
 			// Wait until tailscale is fully up, so that CertDomains has data.
