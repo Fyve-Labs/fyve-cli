@@ -6,7 +6,7 @@ before:
 
 builds:
   - main: .
-    id: cli
+    id: fyve
     binary: fyve
     ldflags: -s -w
     flags:
