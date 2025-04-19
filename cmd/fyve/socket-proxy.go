@@ -40,14 +40,27 @@ func SocketProxyCmd() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if hostname == "" {
-				return errors.New("--state-dir must be specified")
+				if val := os.Getenv("TS_HOSTNAME"); val != "" {
+					hostname = val
+				} else {
+					return errors.New("--hostname must be specified")
+				}
 			}
+
 			if stateDir == "" {
-				return errors.New("--hostname must be specified")
+				if val := os.Getenv("TS_STATE_DIR"); val != "" {
+					stateDir = val
+				} else {
+					return errors.New("--state-dir must be specified")
+				}
 			}
 
 			if socketPath == "" {
-				return errors.New("--socket-path must be specified")
+				if val := os.Getenv("DOCKER_SOCKET"); val != "" {
+					socketPath = val
+				} else {
+					return errors.New("--socket-path must be specified")
+				}
 			}
 
 			s := &tsnet.Server{
