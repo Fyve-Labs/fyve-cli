@@ -43,7 +43,7 @@ func SocketProxyCmd() *cobra.Command {
 				if val := os.Getenv("TS_HOSTNAME"); val != "" {
 					hostname = val
 				} else {
-					return errors.New("--hostname must be specified")
+					hostname = "socket-proxy"
 				}
 			}
 
@@ -51,7 +51,7 @@ func SocketProxyCmd() *cobra.Command {
 				if val := os.Getenv("TS_STATE_DIR"); val != "" {
 					stateDir = val
 				} else {
-					return errors.New("--state-dir must be specified")
+					stateDir = "socket-proxy.state"
 				}
 			}
 
@@ -59,7 +59,7 @@ func SocketProxyCmd() *cobra.Command {
 				if val := os.Getenv("DOCKER_SOCKET"); val != "" {
 					socketPath = val
 				} else {
-					return errors.New("--socket-path must be specified")
+					socketPath = "/var/run/docker.sock"
 				}
 			}
 
@@ -117,10 +117,10 @@ func SocketProxyCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&hostname, "hostname", "", "socket-proxy", "Tailscale hostname to use")
-	cmd.Flags().StringVarP(&stateDir, "state-dir", "s", "socket-proxy.state", "Tailscale coordination server URL")
+	cmd.Flags().StringVarP(&hostname, "hostname", "", "", "Tailscale hostname to use")
+	cmd.Flags().StringVarP(&stateDir, "state-dir", "s", "", "Tailscale coordination server URL")
 	cmd.Flags().StringVarP(&loginServer, "login-server", "", "", "Server state directory")
-	cmd.Flags().StringVarP(&socketPath, "socket-path", "", "/var/run/docker.sock", "Docker socket path")
+	cmd.Flags().StringVarP(&socketPath, "socket-path", "", "", "Docker socket path")
 
 	return cmd
 }
