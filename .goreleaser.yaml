@@ -20,6 +20,22 @@ builds:
       - amd64
       - arm64
 
+kos:
+  - id: ghcr
+    repository: ghcr.io/fyve-labs/fyve-cli
+    bare: true
+    base_image: gcr.io/distroless/base-debian12
+    build: fyve
+    main: .
+    env:
+      - CGO_ENABLED=0
+    platforms:
+      - linux/amd64
+    tags:
+      - "{{ .Tag }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+      - "sha-{{ .ShortCommit }}"
+
 archives:
   - formats: [ tar.gz ]
     name_template: "fyve-cli_{{ .Os }}-{{ .Arch }}"
