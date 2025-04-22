@@ -89,7 +89,6 @@ func SocketProxyCmd() *cobra.Command {
 			}
 			srv := &http.Server{
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					slog.Debug(r.URL.Path)
 					socketProxy.ServeHTTP(w, r)
 				}),
 			}
