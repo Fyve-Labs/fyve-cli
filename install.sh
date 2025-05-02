@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e
 
@@ -107,28 +107,20 @@ main() {
     log "Extracting archive"
     tar -xzf "$ARCHIVE"
 
-    if [[ "$GLOBAL" == "1" ]] || [[ "$GITHUB_ACTIONS" == "true" ]]; then
-		log "Moving binary to /usr/local/bin"
-		sudo mv fyve /usr/local/bin/fyve
-		log "Installation complete!"
-		exit 0
-	fi
+    if [ -n "${GITHUB_ACTIONS-}" ] && [ "${GITHUB_ACTIONS}" == "true" ]; then
+        mkdir -p "$HOME/.fyve/bin"
+        mv fyve "$HOME/.fyve/bin/fyve"
+        echo "$HOME/.fyve/bin" >> $GITHUB_PATH
+        log "Added $INSTALL_DIR to \$GITHUB_PATH"
+        exit 0
+    fi
 
-	if [[ "$OS" == "darwin" ]]; then
-		mkdir -p "$HOME/bin"
-    log "Moving binary to $HOME/bin/fyve"
-		mv fyve "$HOME/bin/fyve"
-		log "Installation complete!"
-		exit 0
-	fi
-
-	log "Moving binary to: $HOME/.local/bin/fyve"
-	mv fyve "$HOME/.local/bin/fyve"
-	log "Installation complete!"
+    log "Moving binary to /usr/local/bin"
+    sudo mv fyve /usr/local/bin/fyve
+    log "Installation complete!"
 }
 
 # Fallback to Go install if no release found
 trap 'go_install' ERR
-
 
 main

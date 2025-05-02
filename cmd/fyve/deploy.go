@@ -83,7 +83,10 @@ func DeployCmd() *cobra.Command {
 				return fmt.Errorf("failed to process secrets: %w", err)
 			}
 
-			_ = buildConfig.EnsureECRRepositoryExists(ctx, ecrClient)
+			err = buildConfig.EnsureECRRepositoryExists(ctx, ecrClient)
+			if err != nil {
+				return err
+			}
 
 			// Set up builder
 			b, err := builder.NewNextJSBuilder(projectDir, appName, environment, buildConfig)
