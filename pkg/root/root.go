@@ -42,6 +42,7 @@ func NewRootCommand() (*cobra.Command, error) {
 	rootCmd.AddCommand(commands.NewDeployCmd())
 	AddKubeCommand(p, rootCmd, app.NewPublishCommand(p))
 	AddKubeCommand(p, rootCmd, app.NewUnPublishCommand(p))
+	AddKubeCommand(p, rootCmd, app.NewListCommand(p))
 	rootCmd.AddCommand(commands.NewUpdateCmd())
 	rootCmd.AddCommand(commands.NewSocketProxyCmd())
 
