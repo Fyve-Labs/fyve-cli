@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/external-dns/endpoint"
 )
 
-func NewPublishCommand(p *commands.FyveParams) *cobra.Command {
+func NewPublishCommand(p *commands.Params) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "publish",
 		Short: "Publish application deployed to Fyve App Platform",

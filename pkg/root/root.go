@@ -12,7 +12,7 @@ import (
 )
 
 func NewRootCommand() (*cobra.Command, error) {
-	p := &commands.FyveParams{}
+	p := &commands.Params{}
 	p.Initialize()
 
 	rootName := GetBinaryName()
@@ -40,12 +40,27 @@ func NewRootCommand() (*cobra.Command, error) {
 	p.Params.SetFlags(rootCmd.PersistentFlags())
 
 	rootCmd.AddCommand(commands.NewDeployCmd())
-	rootCmd.AddCommand(app.NewPublishCommand(p))
-	rootCmd.AddCommand(app.NewUnPublishCommand(p))
+	AddKubeCommand(p, rootCmd, app.NewPublishCommand(p))
+	AddKubeCommand(p, rootCmd, app.NewUnPublishCommand(p))
 	rootCmd.AddCommand(commands.NewUpdateCmd())
 	rootCmd.AddCommand(commands.NewSocketProxyCmd())
 
 	return rootCmd, nil
+}
+
+func AddKubeCommand(p *commands.Params, root, cmd *cobra.Command) {
+	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+		_, err := p.RestConfig()
+		if err != nil {
+			p.ClientConfig = nil
+			kubeconfig := p.BuildKubeconfig()
+			_ = os.Setenv("KUBECONFIG", kubeconfig)
+		}
+
+		return nil
+	}
+
+	root.AddCommand(cmd)
 }
 
 func GetBinaryName() string {

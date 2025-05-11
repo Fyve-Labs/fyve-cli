@@ -1,12 +1,16 @@
 package commands
 
 import (
+	"fmt"
+	"io"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"knative.dev/client/pkg/k8s"
+	"net/http"
 	"os"
+	"path/filepath"
 
 	clientdynamic "knative.dev/client/pkg/dynamic"
 	knerrors "knative.dev/client/pkg/errors"
@@ -16,7 +20,7 @@ import (
 	servingv1beta1client "knative.dev/serving/pkg/client/clientset/versioned/typed/serving/v1beta1"
 )
 
-type FyveParams struct {
+type Params struct {
 	k8s.Params
 
 	// Memorizes the loaded config
@@ -28,7 +32,7 @@ type FyveParams struct {
 	NewServingV1beta1Client func(namespace string) (clientservingv1beta1.KnServingClient, error)
 }
 
-func (params *FyveParams) Initialize() {
+func (params *Params) Initialize() {
 	if params.NewKubeClient == nil {
 		params.NewKubeClient = params.newKubeClient
 	}
@@ -46,7 +50,7 @@ func (params *FyveParams) Initialize() {
 	}
 }
 
-func (params *FyveParams) newKubeClient() (kubernetes.Interface, error) {
+func (params *Params) newKubeClient() (kubernetes.Interface, error) {
 	restConfig, err := params.RestConfig()
 	if err != nil {
 		return nil, err
@@ -60,7 +64,7 @@ func (params *FyveParams) newKubeClient() (kubernetes.Interface, error) {
 	return client, nil
 }
 
-func (params *FyveParams) newServingClient(namespace string) (clientservingv1.KnServingClient, error) {
+func (params *Params) newServingClient(namespace string) (clientservingv1.KnServingClient, error) {
 	restConfig, err := params.RestConfig()
 	if err != nil {
 		return nil, err
@@ -73,7 +77,7 @@ func (params *FyveParams) newServingClient(namespace string) (clientservingv1.Kn
 	return clientservingv1.NewKnServingClient(client, namespace), nil
 }
 
-func (params *FyveParams) newServingClientV1beta1(namespace string) (clientservingv1beta1.KnServingClient, error) {
+func (params *Params) newServingClientV1beta1(namespace string) (clientservingv1beta1.KnServingClient, error) {
 	restConfig, err := params.RestConfig()
 	if err != nil {
 		return nil, err
@@ -86,7 +90,7 @@ func (params *FyveParams) newServingClientV1beta1(namespace string) (clientservi
 	return clientservingv1beta1.NewKnServingClient(client, namespace), nil
 }
 
-func (params *FyveParams) newDynamicClient(namespace string) (clientdynamic.KnDynamicClient, error) {
+func (params *Params) newDynamicClient(namespace string) (clientdynamic.KnDynamicClient, error) {
 	restConfig, err := params.RestConfig()
 	if err != nil {
 		return nil, err
@@ -97,7 +101,7 @@ func (params *FyveParams) newDynamicClient(namespace string) (clientdynamic.KnDy
 }
 
 // RestConfig returns REST config, which can be to use to create specific clientset
-func (params *FyveParams) RestConfig() (*rest.Config, error) {
+func (params *Params) RestConfig() (*rest.Config, error) {
 	var err error
 
 	if params.ClientConfig == nil {
@@ -119,4 +123,50 @@ func (params *FyveParams) RestConfig() (*rest.Config, error) {
 	})
 
 	return config, nil
+}
+
+func (params *Params) BuildKubeconfig() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting user home directory: %v\n", err)
+		return ""
+	}
+
+	// Create directory if it doesn't exist
+	fyveDirPath := filepath.Join(homeDir, ".fyve")
+	if err = os.MkdirAll(fyveDirPath, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating directory: %v\n", err)
+		return ""
+	}
+
+	// Path to save the kubeconfig file
+	kubeconfigPath := filepath.Join(fyveDirPath, "kubeconfig")
+
+	// Check if the file already exists
+	if _, err = os.Stat(kubeconfigPath); os.IsNotExist(err) {
+		// Download the kubeconfig template
+		resp, err := http.Get("https://raw.githubusercontent.com/Fyve-Labs/fyve-cli/main/docs/kubeconfig/kubeconfig.tpl")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error downloading kubeconfig template: %v\n", err)
+			return ""
+		}
+		defer resp.Body.Close()
+
+		// Create the file
+		file, err := os.Create(kubeconfigPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating kubeconfig file: %v\n", err)
+			return ""
+		}
+		defer file.Close()
+
+		// Copy the response body to the file
+		_, err = io.Copy(file, resp.Body)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing to kubeconfig file: %v\n", err)
+			return ""
+		}
+	}
+
+	return kubeconfigPath
 }

@@ -10,7 +10,7 @@ import (
 	knerrors "knative.dev/client/pkg/errors"
 )
 
-func NewUnPublishCommand(p *commands.FyveParams) *cobra.Command {
+func NewUnPublishCommand(p *commands.Params) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "unpublish",
 		Short: "Un-publish application",

@@ -2,10 +2,12 @@ package config
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	flag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -66,8 +68,14 @@ type config struct {
 
 func (c *config) ConfigFile() string {
 	if c.configFile != "" {
+		if !filepath.IsAbs(c.configFile) {
+			pwd, _ := os.Getwd()
+			c.configFile = filepath.Join(pwd, c.configFile)
+		}
+
 		return c.configFile
 	}
+
 	return defaultConfigFile
 }
 
@@ -94,8 +102,18 @@ var globalConfig = config{}
 var GlobalConfig Config = &globalConfig
 
 func BootstrapConfig() error {
-	viper.SetConfigFile(globalConfig.ConfigFile())
+	// Create a new FlagSet for the bootstrap flags and parse those. This will
+	// initialize the config file to use (obtained via GlobalConfig.ConfigFile())
+	bootstrapFlagSet := flag.NewFlagSet("fyve", flag.ContinueOnError)
+	AddBootstrapFlags(bootstrapFlagSet)
+	bootstrapFlagSet.ParseErrorsWhitelist = flag.ParseErrorsWhitelist{UnknownFlags: true}
+	bootstrapFlagSet.Usage = func() {}
+	err := bootstrapFlagSet.Parse(os.Args)
+	if err != nil && !errors.Is(err, flag.ErrHelp) {
+		return err
+	}
 
+	viper.SetConfigFile(GlobalConfig.ConfigFile())
 	viper.AutomaticEnv() // read in environment variables that match
 	viper.SetEnvPrefix("FYVE")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
