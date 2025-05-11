@@ -1,10 +1,10 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"github.com/fyve-labs/fyve-cli/pkg/commands"
 	"github.com/fyve-labs/fyve-cli/pkg/config"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
