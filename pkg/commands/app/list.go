@@ -4,17 +4,18 @@ import (
 	"fmt"
 	"github.com/fyve-labs/fyve-cli/pkg/commands"
 	"github.com/spf13/cobra"
+	"strings"
 	"text/tabwriter"
 	"time"
 )
 
-// NewListCommand returns a new command for listing all Knative serving applications
+// NewListCommand returns a new command for listing all applications
 func NewListCommand(p *commands.Params) *cobra.Command {
 	var namespace string
 
 	cmd := &cobra.Command{
 		Use:     "list",
-		Short:   "List all deployed Knative serving applications",
+		Short:   "List all deployed applications",
 		Example: "fyve list",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Create a Serving client
@@ -29,12 +30,34 @@ func NewListCommand(p *commands.Params) *cobra.Command {
 				return err
 			}
 
+			// Create v1beta1 client to access DomainMappings
+			v1beta1Client, err := p.NewServingV1beta1Client(namespace)
+			if err != nil {
+				return err
+			}
+
+			// Get DomainMappings for the namespace
+			domainMappingList, err := v1beta1Client.ListDomainMappings(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			// Create a map of service name to domain mappings
+			serviceDomains := make(map[string][]string)
+			for _, obj := range domainMappingList.Items {
+				domain := obj.GetName()
+				if domain != "" {
+					refName := obj.Spec.Ref.Name
+					serviceDomains[refName] = append(serviceDomains[refName], domain)
+				}
+			}
+
 			// Set up tabwriter for clean formatting
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			defer w.Flush()
 
 			// Print headers
-			fmt.Fprintln(w, "NAME\tURL\tREADY\tGENERATION\tAGE")
+			fmt.Fprintln(w, "NAME\tURL\tPRODUCTION URL\tREADY\tGENERATION\tAGE")
 
 			if len(serviceList.Items) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "No applications found.")
@@ -59,9 +82,21 @@ func NewListCommand(p *commands.Params) *cobra.Command {
 					url = "<none>"
 				}
 
-				fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n",
+				// Get production URLs from domain mappings for this service
+				productionURLs := "<none>"
+				if domains, exists := serviceDomains[service.Name]; exists && len(domains) > 0 {
+					// Format domains as https URLs
+					urlList := make([]string, len(domains))
+					for i, domain := range domains {
+						urlList[i] = fmt.Sprintf("https://%s", domain)
+					}
+					productionURLs = strings.Join(urlList, ", ")
+				}
+
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\n",
 					service.Name,
 					url,
+					productionURLs,
 					ready,
 					service.Generation,
 					age,
