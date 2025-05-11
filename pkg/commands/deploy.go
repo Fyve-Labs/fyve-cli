@@ -1,4 +1,4 @@
-package fyve
+package commands
 
 import (
 	"context"
@@ -19,12 +19,8 @@ const (
 	DefaultDockerHost = "tcp://socket-proxy:2375"
 )
 
-func init() {
-	rootCmd.AddCommand(DeployCmd())
-}
-
-// DeployCmd returns the deploy command
-func DeployCmd() *cobra.Command {
+// NewDeployCmd returns the deploy command
+func NewDeployCmd() *cobra.Command {
 	var (
 		awsRegion   string
 		environment string

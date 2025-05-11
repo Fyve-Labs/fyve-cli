@@ -1,4 +1,4 @@
-package fyve
+package commands
 
 import (
 	"context"
@@ -18,15 +18,11 @@ import (
 	"time"
 )
 
-func init() {
-	rootCmd.AddCommand(SocketProxyCmd())
-}
-
 var (
 	socketProxy *httputil.ReverseProxy
 )
 
-func SocketProxyCmd() *cobra.Command {
+func NewSocketProxyCmd() *cobra.Command {
 	var (
 		hostname    string
 		stateDir    string

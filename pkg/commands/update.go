@@ -1,4 +1,4 @@
-package fyve
+package commands
 
 import (
 	"context"
@@ -8,11 +8,7 @@ import (
 	"time"
 )
 
-func init() {
-	rootCmd.AddCommand(UpdateCmd())
-}
-
-func UpdateCmd() *cobra.Command {
+func NewUpdateCmd() *cobra.Command {
 	var (
 		imageTag   string
 		dockerHost string
