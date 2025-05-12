@@ -18,14 +18,6 @@ const (
 	oidcRedirectURL = "http://localhost:8085/callback"
 )
 
-// AuthConfig represents the authentication configuration
-type AuthConfig struct {
-	IDToken      string    `json:"id_token"`
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token"`
-	Expiry       time.Time `json:"expiry"`
-}
-
 // NewLoginCommand creates a new login command
 func NewLoginCommand() *cobra.Command {
 	var (

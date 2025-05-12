@@ -1,23 +1,18 @@
 package commands
 
 import (
-	"fmt"
-	"io"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"knative.dev/client/pkg/k8s"
-	"net/http"
-	"os"
-	"path/filepath"
-
 	clientdynamic "knative.dev/client/pkg/dynamic"
 	knerrors "knative.dev/client/pkg/errors"
+	"knative.dev/client/pkg/k8s"
 	clientservingv1 "knative.dev/client/pkg/serving/v1"
 	clientservingv1beta1 "knative.dev/client/pkg/serving/v1beta1"
 	servingv1client "knative.dev/serving/pkg/client/clientset/versioned/typed/serving/v1"
 	servingv1beta1client "knative.dev/serving/pkg/client/clientset/versioned/typed/serving/v1beta1"
+	"os"
 )
 
 type Params struct {
@@ -123,51 +118,4 @@ func (params *Params) RestConfig() (*rest.Config, error) {
 	})
 
 	return config, nil
-}
-
-func (params *Params) BuildKubeconfig() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	// Create directory if it doesn't exist
-	fyveDirPath := filepath.Join(homeDir, ".fyve")
-	if err = os.MkdirAll(fyveDirPath, 0755); err != nil {
-		return "", fmt.Errorf("Error creating directory: %v", err)
-	}
-
-	// Path to save the kubeconfig file
-	kubeconfigPath := filepath.Join(fyveDirPath, "kubeconfig")
-
-	// Check if the file already exists
-	if _, err = os.Stat(kubeconfigPath); os.IsNotExist(err) {
-		// Download the kubeconfig template
-		resp, err := http.Get("https://raw.githubusercontent.com/Fyve-Labs/fyve-cli/main/docs/kubeconfig/kubeconfig.tpl")
-		if err != nil {
-			return "", fmt.Errorf("error downloading kubeconfig template: %v", err)
-		}
-		defer resp.Body.Close()
-
-		// Create the file
-		file, err := os.Create(kubeconfigPath)
-		if err != nil {
-			return "", fmt.Errorf("error creating kubeconfig file: %v", err)
-		}
-		defer file.Close()
-
-		// Copy the response body to the file
-		_, err = io.Copy(file, resp.Body)
-		if err != nil {
-			return "", fmt.Errorf("error writing to kubeconfig file: %v", err)
-		}
-	}
-
-	_, err = clientcmd.LoadFromFile(kubeconfigPath)
-	if err != nil {
-		return "", fmt.Errorf("could not load %s: %w", kubeconfigPath, err)
-	}
-
-	// Let's set config.AuthInfos to bearer token from  ~/.fyve/config.json which was previously populated by login command
-	return kubeconfigPath, nil
 }

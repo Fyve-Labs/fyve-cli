@@ -46,6 +46,7 @@ func NewRootCommand() (*cobra.Command, error) {
 	AddKubeCommand(p, rootCmd, app.NewListCommand(p))
 	rootCmd.AddCommand(commands.NewUpdateCmd())
 	rootCmd.AddCommand(commands.NewLoginCommand())
+	rootCmd.AddCommand(commands.NewLogoutCommand())
 	rootCmd.AddCommand(commands.NewSocketProxyCmd())
 
 	return rootCmd, nil
@@ -53,15 +54,14 @@ func NewRootCommand() (*cobra.Command, error) {
 
 func AddKubeCommand(p *commands.Params, root, cmd *cobra.Command) {
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-		_, err := p.RestConfig()
-		if err != nil {
-			p.ClientConfig = nil
-			kubeconfig, err := p.BuildKubeconfig()
+		// Force built in kubeconfig if not set
+		if len(p.Params.KubeCfgPath) == 0 {
+			kubeconfigPath, err := config.LoadKubeconfig()
 			if err != nil {
 				return err
 			}
 
-			_ = os.Setenv("KUBECONFIG", kubeconfig)
+			p.Params.KubeCfgPath = kubeconfigPath
 		}
 
 		return nil

@@ -45,10 +45,10 @@ func NewListCommand(p *commands.Params) *cobra.Command {
 			// Create a map of service name to domain mappings
 			serviceDomains := make(map[string][]string)
 			for _, obj := range domainMappingList.Items {
-				domain := obj.GetName()
-				if domain != "" {
+				url := obj.Status.Address.URL.String()
+				if url != "" {
 					refName := obj.Spec.Ref.Name
-					serviceDomains[refName] = append(serviceDomains[refName], domain)
+					serviceDomains[refName] = append(serviceDomains[refName], url)
 				}
 			}
 
@@ -84,12 +84,7 @@ func NewListCommand(p *commands.Params) *cobra.Command {
 
 				// Get production URLs from domain mappings for this service
 				productionURLs := "<none>"
-				if domains, exists := serviceDomains[service.Name]; exists && len(domains) > 0 {
-					// Format domains as https URLs
-					urlList := make([]string, len(domains))
-					for i, domain := range domains {
-						urlList[i] = fmt.Sprintf("https://%s", domain)
-					}
+				if urlList, exists := serviceDomains[service.Name]; exists && len(urlList) > 0 {
 					productionURLs = strings.Join(urlList, ", ")
 				}
 
