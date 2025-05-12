@@ -14,9 +14,12 @@ import (
 	clientv1beta1 "knative.dev/client/pkg/serving/v1beta1"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
 	"sigs.k8s.io/external-dns/endpoint"
+	"strings"
 )
 
 func NewPublishCommand(p *commands.Params) *cobra.Command {
+	var domain string
+
 	cmd := &cobra.Command{
 		Use:   "publish",
 		Short: "Publish application deployed to Fyve App Platform",
@@ -26,7 +29,15 @@ func NewPublishCommand(p *commands.Params) *cobra.Command {
 				return errors.New("missing app name, set app name in fyve.yaml or use FYVE_APP environment variable")
 			}
 
-			domain := app + "." + viper.GetString("domain")
+			baseDomain := viper.GetString("domain")
+			if domain == "" {
+				domain = app + "." + baseDomain
+			}
+
+			if !strings.HasSuffix(domain, baseDomain) {
+				return errors.New(fmt.Sprintf("domain '%s' must end with '%s'", domain, baseDomain))
+			}
+
 			namespace := "default"
 
 			// 1. Create DomainMapping
@@ -72,9 +83,12 @@ func NewPublishCommand(p *commands.Params) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&domain, "domain", "", "Domain to publish to (default is {app}.fyve.dev)")
+
 	return cmd
 }
 
+// DNSEndpointResource returns the GroupVersionResource for DNSEndpoints
 func DNSEndpointResource() schema.GroupVersionResource {
 	return schema.GroupVersionResource{
 		Group:    "externaldns.k8s.io",
