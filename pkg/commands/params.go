@@ -125,18 +125,16 @@ func (params *Params) RestConfig() (*rest.Config, error) {
 	return config, nil
 }
 
-func (params *Params) BuildKubeconfig() string {
+func (params *Params) BuildKubeconfig() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting user home directory: %v\n", err)
-		return ""
+		return "", err
 	}
 
 	// Create directory if it doesn't exist
 	fyveDirPath := filepath.Join(homeDir, ".fyve")
 	if err = os.MkdirAll(fyveDirPath, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating directory: %v\n", err)
-		return ""
+		return "", fmt.Errorf("Error creating directory: %v", err)
 	}
 
 	// Path to save the kubeconfig file
@@ -147,26 +145,29 @@ func (params *Params) BuildKubeconfig() string {
 		// Download the kubeconfig template
 		resp, err := http.Get("https://raw.githubusercontent.com/Fyve-Labs/fyve-cli/main/docs/kubeconfig/kubeconfig.tpl")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error downloading kubeconfig template: %v\n", err)
-			return ""
+			return "", fmt.Errorf("error downloading kubeconfig template: %v", err)
 		}
 		defer resp.Body.Close()
 
 		// Create the file
 		file, err := os.Create(kubeconfigPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating kubeconfig file: %v\n", err)
-			return ""
+			return "", fmt.Errorf("error creating kubeconfig file: %v", err)
 		}
 		defer file.Close()
 
 		// Copy the response body to the file
 		_, err = io.Copy(file, resp.Body)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing to kubeconfig file: %v\n", err)
-			return ""
+			return "", fmt.Errorf("error writing to kubeconfig file: %v", err)
 		}
 	}
 
-	return kubeconfigPath
+	_, err = clientcmd.LoadFromFile(kubeconfigPath)
+	if err != nil {
+		return "", fmt.Errorf("could not load %s: %w", kubeconfigPath, err)
+	}
+
+	// Let's set config.AuthInfos to bearer token from  ~/.fyve/config.json which was previously populated by login command
+	return kubeconfigPath, nil
 }

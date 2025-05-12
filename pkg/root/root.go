@@ -56,7 +56,11 @@ func AddKubeCommand(p *commands.Params, root, cmd *cobra.Command) {
 		_, err := p.RestConfig()
 		if err != nil {
 			p.ClientConfig = nil
-			kubeconfig := p.BuildKubeconfig()
+			kubeconfig, err := p.BuildKubeconfig()
+			if err != nil {
+				return err
+			}
+
 			_ = os.Setenv("KUBECONFIG", kubeconfig)
 		}
 

@@ -5,13 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/fyve-labs/fyve-cli/pkg/config"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
-	"gopkg.in/yaml.v3"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -21,9 +20,10 @@ const (
 
 // AuthConfig represents the authentication configuration
 type AuthConfig struct {
-	AccessToken  string    `yaml:"access_token"`
-	RefreshToken string    `yaml:"refresh_token"`
-	Expiry       time.Time `yaml:"expiry"`
+	IDToken      string    `json:"id_token"`
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token"`
+	Expiry       time.Time `json:"expiry"`
 }
 
 // NewLoginCommand creates a new login command
@@ -99,7 +99,7 @@ func NewLoginCommand() *cobra.Command {
 
 			// Start the server in a goroutine
 			go func() {
-				if err := server.ListenAndServe(); err != http.ErrServerClosed {
+				if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 					errChan <- err
 				}
 			}()
@@ -131,15 +131,21 @@ func NewLoginCommand() *cobra.Command {
 				return err
 			}
 
+			idToken, ok := token.Extra("id_token").(string)
+			if !ok {
+				return errors.New("no id_token found in oauth2 token")
+			}
+
 			// Create auth config
-			authConfig := AuthConfig{
+			authConfig := config.AuthConfig{
+				IDToken:      idToken,
 				AccessToken:  token.AccessToken,
 				RefreshToken: token.RefreshToken,
 				Expiry:       token.Expiry,
 			}
 
-			// Save auth config to ~/.fyve/config.yaml
-			if err := saveAuthConfig(authConfig); err != nil {
+			// Save auth config to ~/.fyve/config.json
+			if err := config.SaveAuthConfig(authConfig); err != nil {
 				return err
 			}
 
@@ -152,32 +158,4 @@ func NewLoginCommand() *cobra.Command {
 	cmd.Flags().StringVar(&oidcClientID, "client-id", "fyve-k8s", "OIDC client ID")
 
 	return cmd
-}
-
-// saveAuthConfig saves the authentication configuration to ~/.fyve/config.yaml
-func saveAuthConfig(authConfig AuthConfig) error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	fyveDir := filepath.Join(homeDir, ".fyve")
-	if err := os.MkdirAll(fyveDir, 0700); err != nil {
-		return err
-	}
-
-	configPath := filepath.Join(fyveDir, "config.yaml")
-
-	// Marshal the auth config to YAML
-	yamlData, err := yaml.Marshal(authConfig)
-	if err != nil {
-		return err
-	}
-
-	// Write to the file
-	if err := os.WriteFile(configPath, yamlData, 0600); err != nil {
-		return err
-	}
-
-	return nil
 }
