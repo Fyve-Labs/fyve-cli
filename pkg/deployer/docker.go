@@ -33,7 +33,7 @@ func NewDockerDeployer(appName string, buildConfig *config.Build, remoteHost str
 }
 
 // Deploy deploys the application to the remote Docker host
-func (d *DockerDeployer) Deploy(environment string) error {
+func (d *DockerDeployer) Deploy(environment string, port int32) error {
 	imageName := d.buildConfig.GetImage()
 	containerName := fmt.Sprintf("%s-%s", d.appName, environment)
 	fmt.Printf("Deploying image %s to %s environment\n", imageName, environment)
@@ -102,7 +102,7 @@ func (d *DockerDeployer) Deploy(environment string) error {
 		runCmdArgs = append(runCmdArgs, "--label", "traefik.enable=true")
 		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.routers.%s.rule=Host(`%s`)", routeName, d.appHost))
 		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.routers.%s.tls.certresolver=default", routeName))
-		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port=3000", routeName))
+		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port=%d", routeName, port))
 		runCmdArgs = append(runCmdArgs, "--label", fmt.Sprintf("traefik.http.routers.%s.entrypoints=websecure", routeName))
 
 		// Attach to "public" network for production deployments

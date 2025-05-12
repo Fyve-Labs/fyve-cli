@@ -40,7 +40,7 @@ func NewRootCommand() (*cobra.Command, error) {
 	p.Params.SetFlags(rootCmd.PersistentFlags())
 
 	rootCmd.AddCommand(commands.NewLoginCommand())
-	rootCmd.AddCommand(commands.NewDeployCmd())
+	AddKubeCommand(p, rootCmd, commands.NewDeployCmd(p))
 	AddKubeCommand(p, rootCmd, app.NewPublishCommand(p))
 	AddKubeCommand(p, rootCmd, app.NewUnPublishCommand(p))
 	AddKubeCommand(p, rootCmd, app.NewListCommand(p))

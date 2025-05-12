@@ -1,6 +1,0 @@
-app: whoami
-env:
-  AWS_REGION: us-east-1
-  AWS_S3_BUCKET: sample-bucket
-  APP_URL: https://sample-app.example.com
-  DATABASE_URL: secret:/sample-nextjs-app/{environment}/DATABASE_URL 

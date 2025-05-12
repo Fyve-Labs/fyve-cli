@@ -21,20 +21,25 @@ const (
 
 // AppConfig represents the application configuration
 type AppConfig struct {
-	App string            `yaml:"app"`
-	Env map[string]string `yaml:"env"`
+	App  string            `yaml:"app"`
+	Port int32             `yaml:"port,omitempty"`
+	Env  map[string]string `yaml:"env"`
 }
 
-// Load reads configuration from a YAML file
-func Load(filePath string) (*AppConfig, error) {
-	data, err := os.ReadFile(filePath)
+// LoadAppConfig reads configuration from a YAML file
+func LoadAppConfig() (*AppConfig, error) {
+	data, err := os.ReadFile(globalConfig.ConfigFile())
 	if err != nil {
-		return nil, fmt.Errorf("error reading config file: %w", err)
+		return nil, err
 	}
 
 	var config AppConfig
 	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("error parsing config file: %w", err)
+		return nil, err
+	}
+
+	if config.App == "" {
+		return nil, errors.New("app name is required")
 	}
 
 	return &config, nil
@@ -119,7 +124,7 @@ func BootstrapConfig() error {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	if err := viper.ReadInConfig(); err != nil {
-		// Config file not found; ignore error if desired
+		// Config file not found; ignore the error if desired
 	}
 
 	viper.SetDefault("domain", defaultDomain)

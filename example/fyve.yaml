@@ -1,0 +1,6 @@
+# fyve deploy -c example/fyve.yaml --image ghcr.io/traefik/whoami:latest --port 80
+app: whoami
+env:
+  AWS_REGION: us-east-1
+  AWS_S3_BUCKET: sample-bucket
+  APP_URL: https://whoami.fyve.dev

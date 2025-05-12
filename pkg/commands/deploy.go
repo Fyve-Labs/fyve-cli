@@ -10,6 +10,7 @@ import (
 	"github.com/fyve-labs/fyve-cli/pkg/config"
 	"github.com/fyve-labs/fyve-cli/pkg/deployer"
 	"github.com/fyve-labs/fyve-cli/pkg/secrets"
+	"github.com/fyve-labs/fyve-cli/pkg/service"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -20,45 +21,34 @@ const (
 )
 
 // NewDeployCmd returns the deploy command
-func NewDeployCmd() *cobra.Command {
+func NewDeployCmd(p *Params) *cobra.Command {
 	var (
-		awsRegion   string
-		environment string
-		configFile  string
-		dockerHost  string
+		image        string
+		port         int32
+		environment  string
+		deployDocker bool
+		dockerHost   string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "deploy [app-name]",
 		Short: "Deploy a NextJS application",
-		Long:  `Build and deploy a NextJS application to a remote docker host.`,
+		Long:  `Build and deploy a NextJS application to a remote docker host or Fyve App Platform.`,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get current working directory as project directory
 			projectDir, err := os.Getwd()
 			if err != nil {
 				return fmt.Errorf("failed to get current directory: %w", err)
 			}
 
-			// Load configuration
-			cfg, err := config.Load(configFile)
+			// LoadAppConfig configuration
+			cfg, err := config.LoadAppConfig()
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-
-			// Override app name if provided via args
-			appName := cfg.App
-			if len(args) > 0 && args[0] != "" {
-				appName = args[0]
-				cfg.OverrideAppName(appName)
-			}
-
-			if appName == "" {
-				return fmt.Errorf("app name must be specified in config or as an argument")
+				return fmt.Errorf("error load app config: %w", err)
 			}
 
 			ctx := context.Background()
-			awsConfig, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(awsRegion))
+			awsConfig, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(config.GlobalConfig.Region()))
 			if err != nil {
 				return fmt.Errorf("AWS credentials: %w", err)
 			}
@@ -79,53 +69,72 @@ func NewDeployCmd() *cobra.Command {
 				return fmt.Errorf("failed to process secrets: %w", err)
 			}
 
-			err = buildConfig.EnsureECRRepositoryExists(ctx, ecrClient)
+			if image == "" {
+				err = buildConfig.EnsureECRRepositoryExists(ctx, ecrClient)
+				if err != nil {
+					return err
+				}
+
+				// Set up builder
+				b, err := builder.NewNextJSBuilder(projectDir, cfg.App, environment, buildConfig)
+				if err != nil {
+					return fmt.Errorf("failed to initialize builder: %w", err)
+				}
+
+				// Build the NextJS application
+				if err := b.Build(); err != nil {
+					return fmt.Errorf("build failed: %w", err)
+				}
+
+				err = buildConfig.ECRLogin(ctx, ecrClient)
+				if err != nil {
+					return fmt.Errorf("ECRLogin: %w", err)
+				}
+				defer buildConfig.ECRLogout()
+
+				// Push to ECR
+				if err := b.PushToECR(); err != nil {
+					return fmt.Errorf("failed to push to ECR: %w", err)
+				}
+
+				image = buildConfig.GetImage()
+			}
+
+			// Deploy to a remote Docker host
+			if deployDocker {
+				d, err := deployer.NewDockerDeployer(cfg.App, buildConfig, dockerHost, resolvedEnv)
+				if err != nil {
+					return fmt.Errorf("failed to create deployer: %w", err)
+				}
+
+				if err := d.Deploy(environment, port); err != nil {
+					return fmt.Errorf("deployment failed: %w", err)
+				}
+
+				fmt.Printf("Successfully deployed %s to %s environment\n", cfg.App, environment)
+				return nil
+			}
+
+			// Deploy to Kubernetes
+			namespace := "default"
+			client, err := p.NewServingClient(namespace)
 			if err != nil {
 				return err
 			}
 
-			// Set up builder
-			b, err := builder.NewNextJSBuilder(projectDir, appName, environment, buildConfig)
+			err = service.CreateService(ctx, client, namespace, cfg.App, image, port, resolvedEnv, true, cmd.OutOrStdout())
 			if err != nil {
-				return fmt.Errorf("failed to initialize builder: %w", err)
+				return err
 			}
 
-			// Build the NextJS application
-			if err := b.Build(); err != nil {
-				return fmt.Errorf("build failed: %w", err)
-			}
-
-			err = buildConfig.ECRLogin(ctx, ecrClient)
-			if err != nil {
-				return fmt.Errorf("ECRLogin: %w", err)
-			}
-			defer buildConfig.ECRLogout()
-
-			// Push to ECR
-			if err := b.PushToECR(); err != nil {
-				return fmt.Errorf("failed to push to ECR: %w", err)
-			}
-
-			// Deploy to remote Docker host
-			d, err := deployer.NewDockerDeployer(appName, buildConfig, dockerHost, resolvedEnv)
-			if err != nil {
-				return fmt.Errorf("failed to create deployer: %w", err)
-			}
-
-			if err := d.Deploy(environment); err != nil {
-				return fmt.Errorf("deployment failed: %w", err)
-			}
-
-			fmt.Printf("Successfully deployed %s to %s environment\n", appName, environment)
 			return nil
 		},
 	}
 
-	// Add flags
-	cmd.Flags().StringVarP(&environment, "environment", "e", "prod", "Deployment environment (prod, staging, dev, test, preview)")
-	cmd.Flags().StringVarP(&configFile, "config", "c", "fyve.yaml", "Path to configuration file")
-	cmd.Flags().StringVarP(&awsRegion, "region", "", "us-east-1", "AWS region")
-	cmd.Flags().StringVarP(&dockerHost, "docker-host", "d", DefaultDockerHost, "Remote Docker host URL")
+	cmd.Flags().StringVar(&image, "image", "", "Image to deploy. if not specified, the image will be built from the current directory.")
+	cmd.Flags().Int32Var(&port, "port", 3000, "Port to expose the application on (default: 3000)")
+	cmd.Flags().BoolVar(&deployDocker, "docker", false, "Deploy to docker instead of Kubernetes")
+	cmd.Flags().StringVarP(&dockerHost, "docker-host", "d", DefaultDockerHost, "Remote Docker host URL to deploy to")
 
 	return cmd
 }
