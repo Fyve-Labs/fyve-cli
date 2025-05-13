@@ -149,9 +149,9 @@ func exchangeForDexToken(tokenEndpoint, githubToken string, clientID, clientSecr
 	data.Set("connector_id", "github-actions")
 	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange")
 	data.Set("scope", fmt.Sprintf("openid groups federated:id audience:server:client_id:%s", crossTrustClientId))
-	data.Set("requested_token_type", "urn:ietf:params:oauth:token-type:access_token")
+	data.Set("requested_token_type", "urn:ietf:params:oauth:token-type:id_token")
 	data.Set("subject_token", githubToken)
-	data.Set("subject_token_type", "urn:ietf:params:oauth:token-type:access_token")
+	data.Set("subject_token_type", "urn:ietf:params:oauth:token-type:id_token")
 
 	client := &http.Client{}
 	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
