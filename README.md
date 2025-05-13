@@ -47,14 +47,17 @@ fyve login
 # Deploy using configuration from fyve.yaml
 fyve deploy
 
-# Specify an app name to override the one in config
-fyve deploy my-app
+# Publish the app. DNS setup will be done from this step
+fyve publish
 
 # Specify a different config file
 fyve deploy --config custom-config.yaml
 
 # Deploy to a remote Docker host
 fyve deploy --docker --docker-host tcp://remote-host:2375
+
+# List all apps
+fyve list
 ```
 
 ### Configuration
