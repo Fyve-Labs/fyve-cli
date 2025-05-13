@@ -149,7 +149,7 @@ func exchangeForDexToken(tokenEndpoint, githubToken string, clientID, clientSecr
 	data.Set("connector_id", "github-actions")
 	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange")
 	data.Set("scope", fmt.Sprintf("openid groups federated:id audience:server:client_id:%s", crossTrustClientId))
-	data.Set("requested_token_type", "urn:ietf:params:oauth:token-type:id_token")
+	data.Set("requested_token_type", "urn:ietf:params:oauth:token-type:access_token")
 	data.Set("subject_token", githubToken)
 	data.Set("subject_token_type", "urn:ietf:params:oauth:token-type:id_token")
 
@@ -168,18 +168,20 @@ func exchangeForDexToken(tokenEndpoint, githubToken string, clientID, clientSecr
 	}
 	defer resp.Body.Close()
 
-	var tokenResp map[string]interface{}
+	var tokenResp struct {
+		AccessToken     string `json:"access_token"`
+		ExpiresIn       int32  `json:"expires_in"`
+		IssuedTokenType string `json:"issued_token_type"`
+		TokenType       string `json:"token_type"`
+	}
 
 	if err = json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
 		return "", err
 	}
 
-	tokenRespString, _ := json.Marshal(tokenResp)
-	log.Printf("Token exchange response: %s\n", tokenRespString)
-
-	if val, ok := tokenResp["access_token"].(string); ok && val != "" {
-		return val, nil
+	if tokenResp.AccessToken != "" {
+		return tokenResp.AccessToken, nil
 	}
 
-	return "", errors.New("exchange failed")
+	return "", errors.New("failed exchange token")
 }

@@ -70,8 +70,17 @@ func LoadKubeconfig() (string, error) {
 	}
 
 	context := kubeconfig.Contexts[kubeconfig.CurrentContext]
+	token := authConfig.IDToken
+	if token == "" {
+		token = authConfig.AccessToken
+	}
+
+	if token == "" {
+		return "", fmt.Errorf("could not find token in auth config. Run \"fyve login\" to fix this issue and try again")
+	}
+
 	kubeconfig.AuthInfos[context.AuthInfo] = &api.AuthInfo{
-		Token: authConfig.IDToken,
+		Token: token,
 	}
 
 	err = clientcmd.WriteToFile(*kubeconfig, kubeconfigPath)
