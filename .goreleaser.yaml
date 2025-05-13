@@ -5,7 +5,7 @@ before:
     - go mod tidy
 
 builds:
-  - main: cmd/fyve
+  - main: ./cmd/fyve
     id: fyve
     binary: fyve
     ldflags: -s -w
@@ -27,7 +27,7 @@ kos:
     bare: true
     base_image: gcr.io/distroless/static-debian12
     build: fyve
-    main: cmd/fyve
+    main: ./cmd/fyve
     env:
       - CGO_ENABLED=0
     platforms:
