@@ -24,8 +24,10 @@ jobs:
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
           version: latest
-      - name: BuildAndRun
+      - name: BuildAndTest
         run: |
           go mod download
           go build -o fyve github.com/fyve-labs/fyve-cli/cmd/fyve
           ./fyve list
+        env:
+          FYVE_DEBUG: true

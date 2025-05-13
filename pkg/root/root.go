@@ -125,23 +125,15 @@ func exchangeGithubCredential(ctx context.Context) error {
 	}
 
 	githubToken := respData.Value
-	githubProvider, err := oidc.NewProvider(ctx, "https://token.actions.githubusercontent.com")
-	var claims map[string]interface{}
-	if err != nil {
-		return err
-	}
+	isDebug := viper.GetBool("debug")
+	if isDebug {
+		githubProvider, err := oidc.NewProvider(ctx, "https://token.actions.githubusercontent.com")
+		if err != nil {
+			return err
+		}
 
-	idToken, err := githubProvider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, githubToken)
-	if err != nil {
-		return fmt.Errorf("oidc: failed to verify Github ID Token: %v", err)
+		_ = printClaims(ctx, githubProvider, githubToken, "Github claims: %s\n")
 	}
-
-	if err = idToken.Claims(&claims); err != nil {
-		return fmt.Errorf("oidc: failed to decode claims: %v", err)
-	}
-
-	claimString, _ := json.Marshal(claims)
-	log.Printf("Github claims: %s\n", claimString)
 
 	oidcIssuerURL := viper.GetString("oidc.issuer.url")
 	oidcProvider, err := oidc.NewProvider(ctx, oidcIssuerURL)
@@ -149,29 +141,21 @@ func exchangeGithubCredential(ctx context.Context) error {
 		return err
 	}
 
-	exchangedToken, err := exchangeForDexToken(oidcProvider.Endpoint().TokenURL, githubToken, "fyve-cli", "public", "fyve-cluster")
+	fyveToken, err := exchangeForFyveToken(oidcProvider.Endpoint().TokenURL, githubToken, "fyve-cli", "public", "fyve-cluster")
 	if err != nil {
 		return err
 	}
 
-	fyveIdToken, err := oidcProvider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, exchangedToken)
-	if err != nil {
-		return fmt.Errorf("oidc: failed to verify Fyve Token: %v", err)
+	if isDebug {
+		_ = printClaims(ctx, oidcProvider, fyveToken, "Fyve claims: %s\n")
 	}
-
-	if err = fyveIdToken.Claims(&claims); err != nil {
-		return fmt.Errorf("oidc: failed to decode claims: %v", err)
-	}
-
-	claimString, _ = json.Marshal(claims)
-	log.Printf("Fyve claims: %s\n", claimString)
 
 	return config.SaveAuthConfig(config.AuthConfig{
-		AccessToken: exchangedToken,
+		AccessToken: fyveToken,
 	})
 }
 
-func exchangeForDexToken(tokenEndpoint, githubToken string, clientID, clientSecret, crossTrustClientId string) (string, error) {
+func exchangeForFyveToken(tokenURL, githubToken string, clientID, clientSecret, crossTrustClientId string) (string, error) {
 	data := url.Values{}
 	data.Set("connector_id", "github-actions")
 	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange")
@@ -181,7 +165,7 @@ func exchangeForDexToken(tokenEndpoint, githubToken string, clientID, clientSecr
 	data.Set("subject_token_type", "urn:ietf:params:oauth:token-type:id_token")
 
 	client := &http.Client{}
-	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
+	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return "", err
 	}
@@ -211,4 +195,21 @@ func exchangeForDexToken(tokenEndpoint, githubToken string, clientID, clientSecr
 	}
 
 	return "", errors.New("failed exchange token")
+}
+
+func printClaims(ctx context.Context, provider *oidc.Provider, rawToken, printF string) error {
+	var claims map[string]interface{}
+	idToken, err := provider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, rawToken)
+	if err != nil {
+		return fmt.Errorf("oidc: failed to verify Github ID Token: %v", err)
+	}
+
+	if err = idToken.Claims(&claims); err != nil {
+		return fmt.Errorf("oidc: failed to decode claims: %v", err)
+	}
+
+	claimString, _ := json.Marshal(claims)
+	log.Printf(printF, claimString)
+
+	return nil
 }
