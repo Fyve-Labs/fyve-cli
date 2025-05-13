@@ -194,7 +194,7 @@ func exchangeForFyveToken(tokenURL, githubToken string, clientID, clientSecret, 
 		return tokenResp.AccessToken, nil
 	}
 
-	return "", errors.New("failed exchange token")
+	return "", errors.New("missing access_token from exchange response")
 }
 
 func printClaims(ctx context.Context, provider *oidc.Provider, rawToken, printF string) error {

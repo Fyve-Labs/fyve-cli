@@ -9,7 +9,7 @@ permissions:
   id-token: write
 
 jobs:
-  exchange-token:
+  auto-exchange-token-test:
     runs-on: ubuntu-latest
 
     steps:
