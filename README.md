@@ -47,8 +47,14 @@ fyve login
 # Deploy using configuration from fyve.yaml
 fyve deploy
 
+# Deploy from an image
+fyve deploy --image ghcr.io/traefik/whoami:latest --port 80
+
 # Publish the app. DNS setup will be done from this step
 fyve publish
+
+# Publish with other custom domain
+fyve publish --domain cool-app.fyve.dev
 
 # Specify a different config file
 fyve deploy --config custom-config.yaml
