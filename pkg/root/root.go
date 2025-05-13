@@ -125,7 +125,23 @@ func exchangeGithubCredential(ctx context.Context) error {
 	}
 
 	githubToken := respData.Value
-	log.Printf("Github ID token: %s\n", githubToken)
+	githubProvider, err := oidc.NewProvider(ctx, "https://token.actions.githubusercontent.com")
+	var claims map[string]interface{}
+	if err != nil {
+		return err
+	}
+
+	idToken, err := githubProvider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, githubToken)
+	if err != nil {
+		return fmt.Errorf("oidc: failed to verify Github ID Token: %v", err)
+	}
+
+	if err = idToken.Claims(&claims); err != nil {
+		return fmt.Errorf("oidc: failed to decode claims: %v", err)
+	}
+
+	claimString, _ := json.Marshal(claims)
+	log.Printf("Github claims: %s\n", claimString)
 
 	oidcIssuerURL := viper.GetString("oidc.issuer.url")
 	oidcProvider, err := oidc.NewProvider(ctx, oidcIssuerURL)
@@ -138,7 +154,18 @@ func exchangeGithubCredential(ctx context.Context) error {
 		return err
 	}
 
-	log.Printf("Github token exchanged to Fyve token: %s\n", exchangedToken)
+	fyveIdToken, err := oidcProvider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, exchangedToken)
+	if err != nil {
+		return fmt.Errorf("oidc: failed to verify Fyve Token: %v", err)
+	}
+
+	if err = fyveIdToken.Claims(&claims); err != nil {
+		return fmt.Errorf("oidc: failed to decode claims: %v", err)
+	}
+
+	claimString, _ = json.Marshal(claims)
+	log.Printf("Fyve claims: %s\n", claimString)
+
 	return config.SaveAuthConfig(config.AuthConfig{
 		AccessToken: exchangedToken,
 	})
