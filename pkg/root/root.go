@@ -3,6 +3,7 @@ package root
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/fyve-labs/fyve-cli/pkg/commands"
@@ -167,13 +168,18 @@ func exchangeForDexToken(tokenEndpoint, githubToken string, clientID, clientSecr
 	}
 	defer resp.Body.Close()
 
-	var tokenResp struct {
-		AccessToken string `json:"access_token"`
-	}
+	var tokenResp map[string]interface{}
 
 	if err = json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
 		return "", err
 	}
 
-	return tokenResp.AccessToken, nil
+	tokenRespString, _ := json.Marshal(tokenResp)
+	log.Printf("Token exchange response: %s\n", tokenRespString)
+
+	if val, ok := tokenResp["access_token"].(string); ok && val != "" {
+		return val, nil
+	}
+
+	return "", errors.New("exchange failed")
 }
