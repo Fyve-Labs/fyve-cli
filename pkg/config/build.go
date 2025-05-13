@@ -30,13 +30,8 @@ func (b *Build) GetRepositoryName() string {
 
 // GetImage return full image url
 func (b *Build) GetImage() string {
-	imageTag := b.environment
-	if b.environment == "prod" {
-		imageTag = "latest"
-	}
-
 	if b.image == "" {
-		b.image = fmt.Sprintf("%s:%s", b.repositoryUri, imageTag)
+		b.image = fmt.Sprintf("%s:%s", b.repositoryUri, "latest")
 	}
 
 	return b.image

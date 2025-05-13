@@ -25,7 +25,6 @@ func NewDeployCmd(p *Params) *cobra.Command {
 	var (
 		image        string
 		port         int32
-		environment  string
 		deployDocker bool
 		dockerHost   string
 	)
@@ -36,6 +35,7 @@ func NewDeployCmd(p *Params) *cobra.Command {
 		Long:  `Build and deploy a NextJS application to a remote docker host or Fyve App Platform.`,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			environment := "production"
 			projectDir, err := os.Getwd()
 			if err != nil {
 				return fmt.Errorf("failed to get current directory: %w", err)
@@ -55,7 +55,7 @@ func NewDeployCmd(p *Params) *cobra.Command {
 
 			ecrClient := ecr.NewFromConfig(awsConfig)
 			ssmClient := ssm.NewFromConfig(awsConfig)
-			buildConfig := cfg.BuildConfig(environment)
+			buildConfig := cfg.BuildConfig()
 
 			// Create SSM manager using AWS SDK v2
 			secretManager, err := secrets.NewSSMManager(ssmClient)

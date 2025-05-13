@@ -52,10 +52,9 @@ func (c *AppConfig) OverrideAppName(appName string) {
 	}
 }
 
-func (c *AppConfig) BuildConfig(environment string) *Build {
+func (c *AppConfig) BuildConfig() *Build {
 	return &Build{
-		appName:     c.App,
-		environment: environment,
+		appName: c.App,
 	}
 }
 
