@@ -103,7 +103,7 @@ func NewListCommand(p *commands.Params) *cobra.Command {
 	}
 
 	// Add namespace flag
-	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "Namespace to list applications from (default is current namespace)")
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "Namespace to list applications from")
 
 	return cmd
 }
