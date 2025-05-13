@@ -1,12 +1,15 @@
 # Fyve CLI
 
-A command-line tool for building and deploying NextJS applications to remote Docker hosts.
+A command-line tool for the Fyve App Platform that helps deploy Docker-based applications to Kubernetes with auto-scaling capabilities.
 
 ## Features
 
-- Build NextJS applications using Docker
-- Push Docker images to AWS ECR
-- Deploy to remote Docker hosts
+- Deploy Docker-based applications to Kubernetes (primary deployment target)
+- Auto-scale applications to and from zero for efficient resource utilization
+- Make applications instantly accessible with custom domains using the `fyve publish` command
+- Secure authentication with the Fyve App Platform
+- Build NextJS and other Docker-based applications
+- Legacy support for Docker host deployment (not intended for future use)
 - Handle secrets using AWS Systems Manager Parameter Store
 - Automatically use default Dockerfile if one doesn't exist in the project
 - Automatically create ECR repositories if they don't exist
@@ -38,6 +41,9 @@ export default nextConfig
 ### Basic usage
 
 ```bash
+# Login
+fyve login
+
 # Deploy using configuration from fyve.yaml
 fyve deploy
 
