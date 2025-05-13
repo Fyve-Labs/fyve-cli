@@ -21,8 +21,10 @@ const (
 // NewLoginCommand creates a new login command
 func NewLoginCommand() *cobra.Command {
 	var (
-		oidcIssuerURL string
-		oidcClientID  string
+		oidcIssuerURL          string
+		oidcClientID           string
+		oidcClientSecret       string
+		oidcCrossTrustClientID string
 	)
 
 	cmd := &cobra.Command{
@@ -34,12 +36,17 @@ func NewLoginCommand() *cobra.Command {
 				return err
 			}
 
+			if oidcClientSecret == "" {
+				oidcClientSecret = "public"
+			}
+
 			// Create oauth2 config
 			oauth2Config := &oauth2.Config{
-				ClientID:    oidcClientID,
-				RedirectURL: oidcRedirectURL,
-				Endpoint:    oidcProvider.Endpoint(),
-				Scopes:      []string{"openid", "profile", "email"},
+				ClientID:     oidcClientID,
+				ClientSecret: oidcClientSecret,
+				RedirectURL:  oidcRedirectURL,
+				Endpoint:     oidcProvider.Endpoint(),
+				Scopes:       []string{"openid", "profile", "email", "groups", "offline_access", "federated:id", fmt.Sprintf("audience:server:client_id:%s", oidcCrossTrustClientID)},
 			}
 
 			// Generate random state for CSRF protection
@@ -53,7 +60,7 @@ func NewLoginCommand() *cobra.Command {
 			server := &http.Server{Addr: ":8085"}
 
 			// Create a context for server shutdown
-			ctx, cancel := context.WithCancel(cmd.Context())
+			ctx, cancel := context.WithTimeout(cmd.Context(), time.Second*600)
 			defer cancel()
 
 			// Set up http handler for the callback
@@ -80,7 +87,7 @@ func NewLoginCommand() *cobra.Command {
 
 				// Show success page
 				w.WriteHeader(http.StatusOK)
-				fmt.Fprintf(w, "Login successful! You can close this window and return to the CLI.")
+				fmt.Fprintf(w, htmlTemplate)
 
 				// Shutdown the server after a short delay
 				go func() {
@@ -97,7 +104,7 @@ func NewLoginCommand() *cobra.Command {
 			}()
 
 			// Generate the auth URL and open it in the browser
-			authURL := oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline)
+			authURL := oauth2Config.AuthCodeURL(state, oauth2.SetAuthURLParam("prompt", "none"), oauth2.SetAuthURLParam("connector_id", "fyve-google"))
 			fmt.Fprintln(cmd.OutOrStdout(), "Opening browser for login...")
 			if err := browser.OpenURL(authURL); err != nil {
 				fmt.Fprintln(os.Stderr, "failed to open browser")
@@ -146,8 +153,42 @@ func NewLoginCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&oidcIssuerURL, "issuer", "https://auth.fyve.dev", "OIDC issuer URL")
-	cmd.Flags().StringVar(&oidcClientID, "client-id", "fyve-k8s", "OIDC client ID")
+	cmd.Flags().StringVar(&oidcIssuerURL, "oidc-issuer-url", "https://dex.fyve.dev", "OIDC issuer URL")
+	cmd.Flags().StringVar(&oidcClientID, "oidc-client-id", "fyve-cli", "OIDC client ID")
+	cmd.Flags().StringVar(&oidcClientSecret, "oidc-client-secret", "", "OIDC client secret")
+	cmd.Flags().StringVar(&oidcCrossTrustClientID, "oidc-cross-trust-client-id", "fyve-cluster", "Trusted Client ID to be included in \"aud\" claim. More info at https://dexidp.io/docs/configuration/custom-scopes-claims-clients/#cross-client-trust-and-authorized-party")
 
 	return cmd
 }
+
+const htmlTemplate = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Authenticated</title>
+	<script>
+		window.close()
+	</script>
+	<style>
+		body {
+			background-color: #eee;
+			margin: 0;
+			padding: 0;
+			font-family: sans-serif;
+		}
+		.placeholder {
+			margin: 2em;
+			padding: 2em;
+			background-color: #fff;
+			border-radius: 1em;
+		}
+	</style>
+</head>
+<body>
+	<div class="placeholder">
+		<h1>Authenticated</h1>
+		<p>You have logged in to the cluster. You can close this window.</p>
+	</div>
+</body>
+</html>`
