@@ -21,6 +21,19 @@ const (
 	DefaultDockerHost = "tcp://socket-proxy:2375"
 )
 
+var deploy_example = `
+  # Deploy using configuration from fyve.yaml
+  fyve deploy
+
+  # Deploy without configuration file
+  fyve deploy --name whoami --image ghcr.io/traefik/whoami:latest --port 80
+
+  # Custom scale down delay
+  fyve deploy --scale-down-delay 10m
+
+  # Deploy to a remote Docker host
+  fyve deploy --docker`
+
 // NewDeployCmd returns the deploy command
 func NewDeployCmd(p *commands.Params) *cobra.Command {
 	var (
@@ -29,10 +42,10 @@ func NewDeployCmd(p *commands.Params) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "deploy",
-		Short: "Build and deploy Docker based application",
-		Long:  `Build and deploy Docker based application to a remote Docker host or Fyve App Platform.`,
-		Args:  cobra.MaximumNArgs(1),
+		Use:     "deploy",
+		Short:   "Build and deploy Docker based application",
+		Example: deploy_example,
+		Args:    cobra.MaximumNArgs(1),
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			BindAppFlags(cmd.Flags())
 		},
