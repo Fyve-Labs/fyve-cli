@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 //go:embed nextjs.Dockerfile
@@ -112,9 +113,14 @@ dist
 		}
 	}
 
+	platform := "linux/amd64"
+	if val := os.Getenv("DOCKER_BUILD_PLATFORM"); val != "" {
+		platform = val
+	}
+
 	// Build Docker image with platform specified
 	cmd := exec.Command("docker", "build",
-		"--platform", "linux/amd64",
+		"--platform", platform,
 		"-f", dockerfilePath,
 		"-t", b.config.GetImage(),
 		b.ProjectDir)
@@ -126,7 +132,38 @@ dist
 
 // PushToECR uploads the built image to AWS ECR
 func (b *NextJSBuilder) PushToECR() error {
-	pushCmd := exec.Command("docker", "push", b.config.GetImage())
+	currentImage := b.config.GetImage()
+	err := dockerPush(currentImage)
+	if err != nil {
+		return err
+	}
+
+	imageParts := strings.Split(currentImage, ":")
+	if len(imageParts) != 2 {
+		return fmt.Errorf("PushToECR: invalid image format")
+	}
+
+	imageURL := imageParts[0]
+	imageTag := imageParts[1]
+
+	if imageTag != "latest" {
+		// tag the latest image with the current image tag
+		lastestImageURL := imageURL + ":latest"
+		tagCmd := exec.Command("docker", "tag", lastestImageURL, currentImage)
+		tagCmd.Stdout = os.Stdout
+		tagCmd.Stderr = os.Stderr
+		if err = tagCmd.Run(); err != nil {
+			return fmt.Errorf("failed to tag latest image: %w", err)
+		}
+
+		return dockerPush(lastestImageURL)
+	}
+
+	return nil
+}
+
+func dockerPush(image string) error {
+	pushCmd := exec.Command("docker", "push", image)
 	pushCmd.Stdout = os.Stdout
 	pushCmd.Stderr = os.Stderr
 
