@@ -54,6 +54,7 @@ func NewRootCommand() (*cobra.Command, error) {
 	AddKubeCommand(p, rootCmd, app.NewPublishCommand(p))
 	AddKubeCommand(p, rootCmd, app.NewUnPublishCommand(p))
 	AddKubeCommand(p, rootCmd, app.NewListCommand(p))
+	AddKubeCommand(p, rootCmd, commands.NewKubeconfigCommand(p))
 
 	rootCmd.AddCommand(commands.NewUpdateCmd())
 	rootCmd.AddCommand(commands.NewLoginCommand())
