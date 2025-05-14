@@ -33,10 +33,6 @@ type AppConfig struct {
 	Autoscaling Autoscaling       `yaml:"autoscaling"`
 }
 
-func (c *AppConfig) OverrideEnv(env map[string]string) {
-
-}
-
 func (c *AppConfig) Validate() error {
 	if c.App == "" {
 		return errors.New("missing app name")
@@ -74,6 +70,9 @@ func LoadAppConfig() (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// viper makes all envvar keys lowercase, so we need to convert them back to uppercase
+	config.Env = convertMapKeysToUppercase(config.Env)
 
 	var c = &config
 	return &config, c.Validate()
@@ -141,4 +140,13 @@ func BootstrapConfig() error {
 
 func AddBootstrapFlags(flags *flag.FlagSet) {
 	flags.StringVarP(&globalConfig.configFile, "config", "c", "", fmt.Sprintf("fyve configuration file (default: %s)", defaultConfigFile))
+}
+
+func convertMapKeysToUppercase(source map[string]string) map[string]string {
+	result := make(map[string]string)
+	for k, v := range source {
+		result[strings.ToUpper(k)] = v
+	}
+
+	return result
 }
