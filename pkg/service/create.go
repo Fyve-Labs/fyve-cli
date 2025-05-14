@@ -3,22 +3,24 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/fyve-labs/fyve-cli/pkg/config"
 	"io"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"knative.dev/client/pkg/config"
+	kconfig "knative.dev/client/pkg/config"
 	clientservingv1 "knative.dev/client/pkg/serving/v1"
 	"knative.dev/client/pkg/wait"
+	"knative.dev/serving/pkg/apis/autoscaling"
 	"knative.dev/serving/pkg/apis/serving"
 	servingv1 "knative.dev/serving/pkg/apis/serving/v1"
 	"time"
 )
 
-func CreateService(ctx context.Context, client clientservingv1.KnServingClient, namespace, name, image string, port int32, env map[string]string, forceCreate bool, out io.Writer) error {
+func CreateService(ctx context.Context, client clientservingv1.KnServingClient, namespace string, appConfig *config.AppConfig, env map[string]string, forceCreate bool, out io.Writer) error {
 	service := &servingv1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      appConfig.App,
 			Namespace: namespace,
 		},
 	}
@@ -27,16 +29,16 @@ func CreateService(ctx context.Context, client clientservingv1.KnServingClient, 
 		Spec: servingv1.RevisionSpec{},
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
-				"autoscaling.knative.dev/scale-down-delay": "15m",
+				autoscaling.ScaleDownDelayAnnotationKey: appConfig.Autoscaling.ScaledownDelay,
 			},
 		},
 	}
 
 	service.Spec.Template.Spec.Containers = []corev1.Container{{
-		Image: image,
+		Image: appConfig.Image,
 		Env:   envMapToEnvvar(env),
 		Ports: []corev1.ContainerPort{{
-			ContainerPort: port,
+			ContainerPort: appConfig.Port,
 			Protocol:      corev1.ProtocolTCP,
 		}},
 	}}
@@ -130,7 +132,7 @@ func prepareAndUpdateService(ctx context.Context, client clientservingv1.KnServi
 		service.ResourceVersion = origService.ResourceVersion
 		return service, nil
 	}
-	return client.UpdateServiceWithRetry(ctx, service.Name, updateFunc, config.DefaultRetry.Steps)
+	return client.UpdateServiceWithRetry(ctx, service.Name, updateFunc, kconfig.DefaultRetry.Steps)
 
 }
 

@@ -24,39 +24,37 @@ const (
 // NewDeployCmd returns the deploy command
 func NewDeployCmd(p *commands.Params) *cobra.Command {
 	var (
-		image        string
-		port         int32
 		deployDocker bool
 		dockerHost   string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "deploy [app-name]",
+		Use:   "deploy",
 		Short: "Build and deploy Docker based application",
 		Long:  `Build and deploy Docker based application to a remote Docker host or Fyve App Platform.`,
 		Args:  cobra.MaximumNArgs(1),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			BindAppFlags(cmd.Flags())
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			environment := "prod"
-			projectDir, err := os.Getwd()
-			if err != nil {
-				return fmt.Errorf("failed to get current directory: %w", err)
-			}
+			projectDir, _ := os.Getwd()
 
 			// LoadAppConfig configuration
-			cfg, err := config.LoadAppConfig()
+			appConfig, err := config.LoadAppConfig()
 			if err != nil {
-				return fmt.Errorf("error load app config: %w", err)
+				return err
 			}
 
 			ctx := context.Background()
-			awsConfig, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(config.GlobalConfig.Region()))
+			awsConfig, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(appConfig.Region))
 			if err != nil {
 				return fmt.Errorf("AWS credentials: %w", err)
 			}
 
 			ecrClient := ecr.NewFromConfig(awsConfig)
 			ssmClient := ssm.NewFromConfig(awsConfig)
-			buildConfig := cfg.BuildConfig()
+			buildConfig := appConfig.BuildConfig()
 
 			// Create SSM Manager Client
 			secretManager, err := secrets.NewSSMManager(ssmClient)
@@ -65,19 +63,19 @@ func NewDeployCmd(p *commands.Params) *cobra.Command {
 			}
 
 			// Process environment variables and resolve any secret references
-			resolvedEnv, err := secretManager.ProcessSecretRefs(cfg.Env, environment)
+			resolvedEnv, err := secretManager.ProcessSecretRefs(appConfig.Env, environment)
 			if err != nil {
 				return fmt.Errorf("failed to process secrets: %w", err)
 			}
 
-			if image == "" {
+			if !appConfig.SkipBuild() {
 				err = buildConfig.EnsureECRRepositoryExists(ctx, ecrClient)
 				if err != nil {
 					return err
 				}
 
 				// Set up builder
-				b, err := builder.NewNextJSBuilder(projectDir, cfg.App, environment, buildConfig)
+				b, err := builder.NewNextJSBuilder(projectDir, appConfig.App, environment, buildConfig)
 				if err != nil {
 					return fmt.Errorf("failed to initialize builder: %w", err)
 				}
@@ -98,21 +96,21 @@ func NewDeployCmd(p *commands.Params) *cobra.Command {
 					return fmt.Errorf("failed to push to ECR: %w", err)
 				}
 
-				image = buildConfig.GetImage()
+				appConfig.Image = buildConfig.GetImage()
 			}
 
 			// Deploy to a remote Docker host
 			if deployDocker {
-				d, err := deployer.NewDockerDeployer(cfg.App, buildConfig, dockerHost, resolvedEnv)
+				d, err := deployer.NewDockerDeployer(appConfig.App, buildConfig, dockerHost, resolvedEnv)
 				if err != nil {
 					return fmt.Errorf("failed to create deployer: %w", err)
 				}
 
-				if err := d.Deploy(environment, port); err != nil {
+				if err := d.Deploy(environment, appConfig.Port); err != nil {
 					return fmt.Errorf("deployment failed: %w", err)
 				}
 
-				fmt.Printf("Successfully deployed %s to %s environment\n", cfg.App, environment)
+				fmt.Printf("Successfully deployed %s to %s environment\n", appConfig.App, environment)
 				return nil
 			}
 
@@ -123,19 +121,13 @@ func NewDeployCmd(p *commands.Params) *cobra.Command {
 				return err
 			}
 
-			err = service.CreateService(ctx, client, namespace, cfg.App, image, port, resolvedEnv, true, cmd.OutOrStdout())
-			if err != nil {
-				return err
-			}
-
-			return nil
+			return service.CreateService(ctx, client, namespace, appConfig, resolvedEnv, true, cmd.OutOrStdout())
 		},
 	}
 
-	cmd.Flags().StringVar(&image, "image", "", "Image to deploy. if not specified, the image will be built from the current directory.")
-	cmd.Flags().Int32Var(&port, "port", 3000, "Port to expose the application on (default: 3000)")
 	cmd.Flags().BoolVar(&deployDocker, "docker", false, "Deploy to docker instead of Kubernetes")
 	cmd.Flags().StringVarP(&dockerHost, "docker-host", "d", DefaultDockerHost, "Remote Docker host URL to deploy to")
+	SetAppFlags(cmd.Flags())
 
 	return cmd
 }

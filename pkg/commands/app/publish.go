@@ -23,15 +23,18 @@ func NewPublishCommand(p *commands.Params) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "publish",
 		Short: "Publish application deployed to Fyve App Platform",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			_ = viper.BindPFlag("app", cmd.Flags().Lookup("name"))
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			app := viper.GetString("app")
-			if app == "" {
-				return errors.New("missing app name, set app name in fyve.yaml or use FYVE_APP environment variable")
+			appConfig, err := config.LoadAppConfig()
+			if err != nil {
+				return err
 			}
 
 			baseDomain := viper.GetString("domain")
 			if domain == "" {
-				domain = app + "." + baseDomain
+				domain = appConfig.App + "." + baseDomain
 			}
 
 			if !strings.HasSuffix(domain, baseDomain) {
@@ -44,7 +47,7 @@ func NewPublishCommand(p *commands.Params) *cobra.Command {
 			reference := &duckv1.KReference{
 				Kind:       "Service",
 				APIVersion: "serving.knative.dev/v1",
-				Name:       app,
+				Name:       appConfig.App,
 				Namespace:  namespace,
 			}
 
@@ -83,6 +86,7 @@ func NewPublishCommand(p *commands.Params) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().String("name", "", "App name")
 	cmd.Flags().StringVar(&domain, "domain", "", "Domain to publish to (default is {app}.fyve.dev)")
 
 	return cmd

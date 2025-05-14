@@ -2,9 +2,9 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/fyve-labs/fyve-cli/pkg/commands"
+	"github.com/fyve-labs/fyve-cli/pkg/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,11 +16,14 @@ import (
 func NewUnPublishCommand(p *commands.Params) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "unpublish",
-		Short: "Un-publish all associated domains to deployed app",
+		Short: "Un-publish all associated domains of the app",
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			_ = viper.BindPFlag("app", cmd.Flags().Lookup("name"))
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			app := viper.GetString("app")
-			if app == "" {
-				return errors.New("missing app name, set app name in fyve.yaml or use FYVE_APP environment variable")
+			appConfig, err := config.LoadAppConfig()
+			if err != nil {
+				return err
 			}
 
 			namespace := "default"
@@ -39,13 +42,13 @@ func NewUnPublishCommand(p *commands.Params) *cobra.Command {
 			kubeClient := dclient.RawClient()
 
 			// Get all domainmappings in the namespace
-			mappings, err := listDomainMappingsForApp(cmd.Context(), client, app)
+			mappings, err := listDomainMappingsForApp(cmd.Context(), client, appConfig.App)
 			if err != nil {
 				return fmt.Errorf("failed to list domain mappings: %w", err)
 			}
 
 			if len(mappings) == 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "No published domains found for app '%s'\n", app)
+				fmt.Fprintf(cmd.OutOrStdout(), "No published domains found for app '%s'\n", appConfig.App)
 				return nil
 			}
 
@@ -89,6 +92,8 @@ func NewUnPublishCommand(p *commands.Params) *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().String("name", "", "App name")
 
 	return cmd
 }

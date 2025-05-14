@@ -49,11 +49,12 @@ func NewRootCommand() (*cobra.Command, error) {
 	// Global Kube' flags
 	p.Params.SetFlags(rootCmd.PersistentFlags())
 
-	rootCmd.AddCommand(commands.NewLoginCommand())
+	AddKubeCommand(p, rootCmd, app.NewAppCommand(p))
 	AddKubeCommand(p, rootCmd, app.NewDeployCmd(p))
 	AddKubeCommand(p, rootCmd, app.NewPublishCommand(p))
 	AddKubeCommand(p, rootCmd, app.NewUnPublishCommand(p))
 	AddKubeCommand(p, rootCmd, app.NewListCommand(p))
+
 	rootCmd.AddCommand(commands.NewUpdateCmd())
 	rootCmd.AddCommand(commands.NewLoginCommand())
 	rootCmd.AddCommand(commands.NewLogoutCommand())
