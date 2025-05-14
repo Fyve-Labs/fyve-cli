@@ -132,13 +132,13 @@ dist
 
 // PushToECR uploads the built image to AWS ECR
 func (b *NextJSBuilder) PushToECR() error {
-	currentImage := b.config.GetImage()
-	err := dockerPush(currentImage)
+	taggedImage := b.config.GetImage()
+	err := dockerPush(taggedImage)
 	if err != nil {
 		return err
 	}
 
-	imageParts := strings.Split(currentImage, ":")
+	imageParts := strings.Split(taggedImage, ":")
 	if len(imageParts) != 2 {
 		return fmt.Errorf("PushToECR: invalid image format")
 	}
@@ -148,15 +148,15 @@ func (b *NextJSBuilder) PushToECR() error {
 
 	if imageTag != "latest" {
 		// tag the latest image with the current image tag
-		lastestImageURL := imageURL + ":latest"
-		tagCmd := exec.Command("docker", "tag", lastestImageURL, currentImage)
+		lastestImage := imageURL + ":latest"
+		tagCmd := exec.Command("docker", "tag", taggedImage, lastestImage)
 		tagCmd.Stdout = os.Stdout
 		tagCmd.Stderr = os.Stderr
 		if err = tagCmd.Run(); err != nil {
 			return fmt.Errorf("failed to tag latest image: %w", err)
 		}
 
-		return dockerPush(lastestImageURL)
+		return dockerPush(lastestImage)
 	}
 
 	return nil
