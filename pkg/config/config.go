@@ -19,6 +19,12 @@ const (
 	defaultRecordTTL   = 3600
 )
 
+// Config used for flag binding
+var globalConfig = config{}
+
+// GlobalConfig is the global configuration available for every sub-command
+var GlobalConfig Config = &globalConfig
+
 type Autoscaling struct {
 	ScaledownDelay string `yaml:"delay"`
 }
@@ -107,12 +113,6 @@ func (c *config) ConfigFile() string {
 
 	return defaultConfigFile
 }
-
-// Config used for flag binding
-var globalConfig = config{}
-
-// GlobalConfig is the global configuration available for every sub-command
-var GlobalConfig Config = &globalConfig
 
 func BootstrapConfig() error {
 	// Create a new FlagSet for the bootstrap flags and parse those. This will
