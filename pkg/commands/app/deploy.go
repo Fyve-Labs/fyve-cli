@@ -1,4 +1,4 @@
-package commands
+package app
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/fyve-labs/fyve-cli/pkg/builder"
+	"github.com/fyve-labs/fyve-cli/pkg/commands"
 	"github.com/fyve-labs/fyve-cli/pkg/config"
 	"github.com/fyve-labs/fyve-cli/pkg/deployer"
 	"github.com/fyve-labs/fyve-cli/pkg/secrets"
@@ -21,7 +22,7 @@ const (
 )
 
 // NewDeployCmd returns the deploy command
-func NewDeployCmd(p *Params) *cobra.Command {
+func NewDeployCmd(p *commands.Params) *cobra.Command {
 	var (
 		image        string
 		port         int32
@@ -31,11 +32,11 @@ func NewDeployCmd(p *Params) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "deploy [app-name]",
-		Short: "Deploy a NextJS application",
-		Long:  `Build and deploy a NextJS application to a remote docker host or Fyve App Platform.`,
+		Short: "Build and deploy Docker based application",
+		Long:  `Build and deploy Docker based application to a remote Docker host or Fyve App Platform.`,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			environment := "production"
+			environment := "prod"
 			projectDir, err := os.Getwd()
 			if err != nil {
 				return fmt.Errorf("failed to get current directory: %w", err)
@@ -57,7 +58,7 @@ func NewDeployCmd(p *Params) *cobra.Command {
 			ssmClient := ssm.NewFromConfig(awsConfig)
 			buildConfig := cfg.BuildConfig()
 
-			// Create SSM manager using AWS SDK v2
+			// Create SSM Manager Client
 			secretManager, err := secrets.NewSSMManager(ssmClient)
 			if err != nil {
 				return fmt.Errorf("failed to initialize secrets manager: %w", err)
