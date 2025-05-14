@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecr/types"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -30,7 +31,17 @@ func (b *Build) GetRepositoryName() string {
 
 // GetImage return full image url
 func (b *Build) GetImage() string {
-	if b.image == "" {
+	if len(b.image) > 0 {
+		return b.image
+	}
+
+	gitSHA := os.Getenv("GITHUB_SHA")
+	if val := os.Getenv("IMAGE_TAG"); val != "" {
+		b.image = fmt.Sprintf("%s:%s", b.repositoryUri, val)
+	} else if gitSHA != "" {
+		shortCommit := gitSHA[:7]
+		b.image = fmt.Sprintf("%s:%s", b.repositoryUri, "sha-"+shortCommit)
+	} else {
 		b.image = fmt.Sprintf("%s:%s", b.repositoryUri, "latest")
 	}
 
