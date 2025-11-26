@@ -17,15 +17,6 @@ users:
   user:
     exec:
       apiVersion: client.authentication.k8s.io/v1
-      args:
-      - oidc-login
-      - get-token
-      - --oidc-issuer-url=https://dex.fyve.dev
-      - --oidc-client-id=fyve-cluster
-      - --oidc-client-secret=public
-      - --oidc-extra-scope=email
-      - --oidc-extra-scope=groups
-      - --oidc-auth-request-extra-params=connector_id=fyve-google
       command: kubectl
       env: null
       interactiveMode: Never
