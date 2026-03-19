@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
+	"time"
+
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/fyve-labs/fyve-cli/pkg/config"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
-	"net/http"
-	"os"
-	"time"
 )
 
 const (
@@ -34,10 +35,6 @@ func NewLoginCommand() *cobra.Command {
 			oidcProvider, err := oidc.NewProvider(cmd.Context(), oidcIssuerURL)
 			if err != nil {
 				return err
-			}
-
-			if oidcClientSecret == "" {
-				oidcClientSecret = "public"
 			}
 
 			// Create oauth2 config
@@ -153,10 +150,10 @@ func NewLoginCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&oidcIssuerURL, "oidc-issuer-url", "https://dex.fyve.dev", "OIDC issuer URL")
+	cmd.Flags().StringVar(&oidcIssuerURL, "oidc-issuer-url", "https://openid.fyve.dev", "OIDC issuer URL")
 	cmd.Flags().StringVar(&oidcClientID, "oidc-client-id", "fyve-cli", "OIDC client ID")
 	cmd.Flags().StringVar(&oidcClientSecret, "oidc-client-secret", "", "OIDC client secret")
-	cmd.Flags().StringVar(&oidcCrossTrustClientID, "oidc-cross-trust-client-id", "fyve-cluster", "Trusted Client ID to be included in \"aud\" claim. More info at https://dexidp.io/docs/configuration/custom-scopes-claims-clients/#cross-client-trust-and-authorized-party")
+	cmd.Flags().StringVar(&oidcCrossTrustClientID, "oidc-cross-trust-client-id", "fyve-k3s", "Trusted Client ID to be included in \"aud\" claim. More info at https://dexidp.io/docs/configuration/custom-scopes-claims-clients/#cross-client-trust-and-authorized-party")
 
 	return cmd
 }

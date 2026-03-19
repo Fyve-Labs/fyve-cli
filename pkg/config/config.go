@@ -3,12 +3,13 @@ package config
 import (
 	"errors"
 	"fmt"
-	flag "github.com/spf13/pflag"
-	"github.com/spf13/viper"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	flag "github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -133,7 +134,7 @@ func BootstrapConfig() error {
 
 	viper.SetDefault("domain", defaultDomain)
 	viper.SetDefault("dns.ttl", defaultRecordTTL)
-	viper.SetDefault("oidc.issuer.url", "https://dex.fyve.dev")
+	viper.SetDefault("oidc.issuer.url", "https://openid.fyve.dev")
 
 	return nil
 }
