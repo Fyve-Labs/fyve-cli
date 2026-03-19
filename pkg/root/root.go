@@ -5,13 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/fyve-labs/fyve-cli/pkg/commands"
-	"github.com/fyve-labs/fyve-cli/pkg/commands/app"
-	"github.com/fyve-labs/fyve-cli/pkg/config"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"knative.dev/client/pkg/flags"
 	"log"
 	"net/http"
 	"net/url"
@@ -19,6 +12,14 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/fyve-labs/fyve-cli/pkg/commands"
+	"github.com/fyve-labs/fyve-cli/pkg/commands/app"
+	"github.com/fyve-labs/fyve-cli/pkg/config"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"knative.dev/client/pkg/flags"
 )
 
 func NewRootCommand() (*cobra.Command, error) {
@@ -143,7 +144,7 @@ func exchangeGithubCredential(ctx context.Context) error {
 		return err
 	}
 
-	fyveToken, err := exchangeForFyveToken(oidcProvider.Endpoint().TokenURL, githubToken, "fyve-cli", "public", "fyve-cluster")
+	fyveToken, err := exchangeForFyveToken(oidcProvider.Endpoint().TokenURL, githubToken, "fyve-cli", "", "fyve-k3s")
 	if err != nil {
 		return err
 	}
