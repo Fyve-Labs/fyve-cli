@@ -101,7 +101,7 @@ func NewLoginCommand() *cobra.Command {
 			}()
 
 			// Generate the auth URL and open it in the browser
-			authURL := oauth2Config.AuthCodeURL(state, oauth2.SetAuthURLParam("prompt", "none"), oauth2.SetAuthURLParam("connector_id", "fyve-google"))
+			authURL := oauth2Config.AuthCodeURL(state, oauth2.SetAuthURLParam("prompt", "none"))
 			fmt.Fprintln(cmd.OutOrStdout(), "Opening browser for login...")
 			if err := browser.OpenURL(authURL); err != nil {
 				fmt.Fprintln(os.Stderr, "failed to open browser")

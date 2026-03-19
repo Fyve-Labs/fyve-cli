@@ -18,12 +18,9 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.24
+          go-version: 1.25
       - name: Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          version: latest
+        uses: Fyve-Labs/actions/tailscale@main
       - name: BuildAndTest
         run: |
           go mod download
