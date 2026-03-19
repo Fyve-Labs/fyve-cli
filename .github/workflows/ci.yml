@@ -7,6 +7,7 @@ on:
 
 permissions:
   id-token: write
+  contents: read
 
 jobs:
   auto-exchange-token-test:
@@ -19,8 +20,8 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: 1.25
-      - name: Tailscale
-        uses: Fyve-Labs/actions/tailscale@main
+      - uses: Fyve-Labs/actions/configure-aws-credentials@main
+      - uses: Fyve-Labs/actions/tailscale@main
       - name: BuildAndTest
         run: |
           go mod download
