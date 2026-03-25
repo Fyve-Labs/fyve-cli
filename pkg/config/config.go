@@ -134,7 +134,7 @@ func BootstrapConfig() error {
 
 	viper.SetDefault("domain", defaultDomain)
 	viper.SetDefault("dns.ttl", defaultRecordTTL)
-	viper.SetDefault("oidc.issuer.url", "https://openid.fyve.dev")
+	viper.SetDefault("oidc.issuer.url", "https://auth.fyve.dev")
 
 	return nil
 }

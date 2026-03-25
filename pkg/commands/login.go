@@ -150,7 +150,7 @@ func NewLoginCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&oidcIssuerURL, "oidc-issuer-url", "https://openid.fyve.dev", "OIDC issuer URL")
+	cmd.Flags().StringVar(&oidcIssuerURL, "oidc-issuer-url", "https://auth.fyve.dev", "OIDC issuer URL")
 	cmd.Flags().StringVar(&oidcClientID, "oidc-client-id", "fyve-cli", "OIDC client ID")
 	cmd.Flags().StringVar(&oidcClientSecret, "oidc-client-secret", "", "OIDC client secret")
 	cmd.Flags().StringVar(&oidcCrossTrustClientID, "oidc-cross-trust-client-id", "fyve-k3s", "Trusted Client ID to be included in \"aud\" claim. More info at https://dexidp.io/docs/configuration/custom-scopes-claims-clients/#cross-client-trust-and-authorized-party")
