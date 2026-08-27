@@ -17,12 +17,39 @@ import (
 	"time"
 )
 
-func CreateService(ctx context.Context, client clientservingv1.KnServingClient, namespace string, appConfig *config.AppConfig, env map[string]string, forceCreate bool, out io.Writer) error {
+func CreateService(ctx context.Context, client clientservingv1.KnServingClient, namespace string, appConfig *config.AppConfig, env map[string]string, private bool, forceCreate bool, out io.Writer) error {
+	service := buildService(namespace, appConfig, env, private)
+
+	serviceExists, err := serviceExists(ctx, client, service.Name)
+	if err != nil {
+		return err
+	}
+
+	if serviceExists {
+		if !forceCreate {
+			return fmt.Errorf(
+				"cannot create service '%s' in namespace '%s' "+
+					"because the service already exists and no --force option was given", service.Name, namespace)
+		}
+		err = replaceService(ctx, client, service, out)
+	} else {
+		err = createService(ctx, client, service, out)
+	}
+
+	return err
+}
+
+func buildService(namespace string, appConfig *config.AppConfig, env map[string]string, private bool) *servingv1.Service {
 	service := &servingv1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      appConfig.App,
 			Namespace: namespace,
 		},
+	}
+	if private {
+		service.Annotations = map[string]string{
+			"networking.knative.dev/visibility": serving.VisibilityClusterLocal,
+		}
 	}
 
 	service.Spec.Template = servingv1.RevisionTemplateSpec{
@@ -43,23 +70,7 @@ func CreateService(ctx context.Context, client clientservingv1.KnServingClient, 
 		}},
 	}}
 
-	serviceExists, err := serviceExists(ctx, client, service.Name)
-	if err != nil {
-		return err
-	}
-
-	if serviceExists {
-		if !forceCreate {
-			return fmt.Errorf(
-				"cannot create service '%s' in namespace '%s' "+
-					"because the service already exists and no --force option was given", service.Name, namespace)
-		}
-		err = replaceService(ctx, client, service, out)
-	} else {
-		err = createService(ctx, client, service, out)
-	}
-
-	return err
+	return service
 }
 
 func envMapToEnvvar(env map[string]string) []corev1.EnvVar {

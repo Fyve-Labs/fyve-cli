@@ -1,8 +1,6 @@
 package commands
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -23,9 +21,8 @@ func NewKubeconfigCommand(p *Params) *cobra.Command {
 				return err
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), string(bytes))
-
-			return nil
+			_, err = cmd.OutOrStdout().Write(bytes)
+			return err
 		},
 	}
 

@@ -37,8 +37,9 @@ var deploy_example = `
 // NewDeployCmd returns the deploy command
 func NewDeployCmd(p *commands.Params) *cobra.Command {
 	var (
-		deployDocker bool
-		dockerHost   string
+		deployDocker  bool
+		deployPrivate bool
+		dockerHost    string
 	)
 
 	cmd := &cobra.Command{
@@ -134,11 +135,12 @@ func NewDeployCmd(p *commands.Params) *cobra.Command {
 				return err
 			}
 
-			return service.CreateService(ctx, client, namespace, appConfig, resolvedEnv, true, cmd.OutOrStdout())
+			return service.CreateService(ctx, client, namespace, appConfig, resolvedEnv, deployPrivate, true, cmd.OutOrStdout())
 		},
 	}
 
 	cmd.Flags().BoolVar(&deployDocker, "docker", false, "Deploy to docker instead of Kubernetes")
+	cmd.Flags().BoolVar(&deployPrivate, "private", false, "Make the Knative service available only within the cluster")
 	cmd.Flags().StringVarP(&dockerHost, "docker-host", "d", DefaultDockerHost, "Remote Docker host URL to deploy to")
 	SetAppFlags(cmd.Flags())
 
