@@ -34,8 +34,8 @@ func NewNextJSBuilder(projectDir, appName, environment string, config *config.Bu
 	}, nil
 }
 
-// Build creates a Docker image for the NextJS application
-func (b *NextJSBuilder) Build() error {
+// BuildAndPushToECR builds and publishes the NextJS application image.
+func (b *NextJSBuilder) BuildAndPushToECR() error {
 	// Track temporary files to clean up
 	var tempFiles []string
 	defer func() {
@@ -113,54 +113,62 @@ dist
 		}
 	}
 
-	for _, platform := range dockerBuildPlatforms() {
-		cmd := exec.Command("docker", "build",
-			"--platform", platform,
-			"-f", dockerfilePath,
-			"-t", platformImage(b.config.GetImage(), platform),
-			b.ProjectDir)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+	args, err := dockerBuildArgs(b.ProjectDir, dockerfilePath, b.config.GetImage())
+	if err != nil {
+		return err
+	}
 
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to build image for %s: %w", platform, err)
-		}
+	cmd := exec.Command("docker", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to build and push image: %w", err)
 	}
 
 	return nil
 }
 
-// PushToECR uploads the built image to AWS ECR
-func (b *NextJSBuilder) PushToECR() error {
-	taggedImage := b.config.GetImage()
+func dockerBuildArgs(projectDir, dockerfilePath, image string) ([]string, error) {
 	platforms := dockerBuildPlatforms()
-	platformImages := make([]string, 0, len(platforms))
-	for _, platform := range platforms {
-		image := platformImage(taggedImage, platform)
-		if err := dockerPush(image); err != nil {
-			return err
-		}
-		platformImages = append(platformImages, image)
+	if len(platforms) == 0 {
+		return nil, fmt.Errorf("DOCKER_BUILD_PLATFORM must contain at least one platform")
 	}
 
-	if err := dockerManifestPush(taggedImage, platformImages); err != nil {
-		return err
+	repository, imageTag, err := splitImageTag(image)
+	if err != nil {
+		return nil, err
 	}
-
-	tagSeparator := strings.LastIndex(taggedImage, ":")
-	if tagSeparator == -1 {
-		return fmt.Errorf("PushToECR: invalid image format")
+	if imageTag == "buildcache" {
+		return nil, fmt.Errorf("image tag %q is reserved for the BuildKit cache", imageTag)
 	}
+	cacheImage := repository + ":buildcache"
 
-	imageURL := taggedImage[:tagSeparator]
-	imageTag := taggedImage[tagSeparator+1:]
-
+	args := []string{
+		"buildx", "build",
+		"--platform", strings.Join(platforms, ","),
+		"--file", dockerfilePath,
+		"--tag", image,
+	}
 	if imageTag != "latest" {
-		latestImage := imageURL + ":latest"
-		return dockerManifestPush(latestImage, platformImages)
+		args = append(args, "--tag", repository+":latest")
+	}
+	args = append(args,
+		"--cache-from", "type=registry,ref="+cacheImage,
+		"--cache-to", "type=registry,ref="+cacheImage+",mode=max,image-manifest=true,oci-mediatypes=true",
+		"--push",
+		projectDir,
+	)
+
+	return args, nil
+}
+
+func splitImageTag(image string) (string, string, error) {
+	tagSeparator := strings.LastIndex(image, ":")
+	if tagSeparator <= strings.LastIndex(image, "/") || tagSeparator == len(image)-1 {
+		return "", "", fmt.Errorf("invalid tagged image %q", image)
 	}
 
-	return nil
+	return image[:tagSeparator], image[tagSeparator+1:], nil
 }
 
 func dockerBuildPlatforms() []string {
@@ -172,35 +180,4 @@ func dockerBuildPlatforms() []string {
 	return strings.FieldsFunc(platforms, func(r rune) bool {
 		return r == ',' || r == ' '
 	})
-}
-
-func platformImage(image, platform string) string {
-	return image + "-" + strings.ReplaceAll(platform, "/", "-")
-}
-
-func dockerManifestPush(image string, platformImages []string) error {
-	createArgs := append([]string{"manifest", "create", image}, platformImages...)
-	createCmd := exec.Command("docker", createArgs...)
-	createCmd.Stdout = os.Stdout
-	createCmd.Stderr = os.Stderr
-	if err := createCmd.Run(); err != nil {
-		return fmt.Errorf("failed to create manifest %s: %w", image, err)
-	}
-
-	pushCmd := exec.Command("docker", "manifest", "push", "--purge", image)
-	pushCmd.Stdout = os.Stdout
-	pushCmd.Stderr = os.Stderr
-	if err := pushCmd.Run(); err != nil {
-		return fmt.Errorf("failed to push manifest %s: %w", image, err)
-	}
-
-	return nil
-}
-
-func dockerPush(image string) error {
-	pushCmd := exec.Command("docker", "push", image)
-	pushCmd.Stdout = os.Stdout
-	pushCmd.Stderr = os.Stderr
-
-	return pushCmd.Run()
 }

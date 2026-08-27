@@ -103,7 +103,7 @@ func (b *Build) ECRLogin(ctx context.Context, client *ecr.Client) error {
 	}
 
 	// Format is "username:password"
-	tokenParts := strings.Split(string(decodedToken), ":")
+	tokenParts := strings.SplitN(string(decodedToken), ":", 2)
 	if len(tokenParts) != 2 {
 		return fmt.Errorf("invalid token format")
 	}
@@ -115,7 +115,9 @@ func (b *Build) ECRLogin(ctx context.Context, client *ecr.Client) error {
 	dockerLoginCmd := exec.Command("docker", "login", "--username", username, "--password-stdin", b.registry)
 	dockerLoginCmd.Stdin = strings.NewReader(string(password))
 
-	_ = dockerLoginCmd.Run()
+	if err := dockerLoginCmd.Run(); err != nil {
+		return fmt.Errorf("docker login failed: %w", err)
+	}
 
 	return nil
 }

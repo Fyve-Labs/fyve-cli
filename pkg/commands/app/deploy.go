@@ -88,26 +88,20 @@ func NewDeployCmd(p *commands.Params) *cobra.Command {
 					return err
 				}
 
-				// Set up builder
-				b, err := builder.NewNextJSBuilder(projectDir, appConfig.App, environment, buildConfig)
-				if err != nil {
-					return fmt.Errorf("failed to initialize builder: %w", err)
-				}
-
-				// Build the NextJS application
-				if err := b.Build(); err != nil {
-					return fmt.Errorf("build failed: %w", err)
-				}
-
 				err = buildConfig.ECRLogin(ctx, ecrClient)
 				if err != nil {
 					return fmt.Errorf("ECRLogin: %w", err)
 				}
 				defer buildConfig.ECRLogout()
 
-				// Push to ECR
-				if err := b.PushToECR(); err != nil {
-					return fmt.Errorf("failed to push to ECR: %w", err)
+				// Set up builder
+				b, err := builder.NewNextJSBuilder(projectDir, appConfig.App, environment, buildConfig)
+				if err != nil {
+					return fmt.Errorf("failed to initialize builder: %w", err)
+				}
+
+				if err := b.BuildAndPushToECR(); err != nil {
+					return fmt.Errorf("build and push failed: %w", err)
 				}
 
 				appConfig.Image = buildConfig.GetImage()
